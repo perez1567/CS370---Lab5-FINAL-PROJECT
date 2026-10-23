@@ -1,9 +1,7 @@
-
 package com.example.postsurgeryrecoverylog;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.ScaleTransition;
-import javafx.animation.TranslateTransition;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -13,7 +11,6 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
@@ -29,9 +26,9 @@ public class HelloApplication extends Application {
     private Stage stage;
 
     private static final String BLUE = "#38588D";
-    private static final String SKY = "#2F8AD8";
-    private static final String PALE = "#E8EFF8";
-    private static final String BG = "#F5F6FA";
+    private static final String LIGHT_BLUE = "#2F8AD8";
+    private static final String PALE_BLUE = "#E8EFF8";
+    private static final String BACKGROUND = "#F5F6FA";
 
     private final List<RecoveryEntry> entries = new ArrayList<>();
     private final List<AdvisedActivity> activities = new ArrayList<>();
@@ -44,16 +41,13 @@ public class HelloApplication extends Application {
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("MMM d, yyyy");
 
-    // DATA
-
     private static class RecoveryEntry {
         String type;
         String note;
         String photoPath;
         LocalDate date;
 
-        RecoveryEntry(String type, String note,
-                      String photoPath, LocalDate date) {
+        RecoveryEntry(String type, String note, String photoPath, LocalDate date) {
             this.type = type;
             this.note = note;
             this.photoPath = photoPath;
@@ -67,8 +61,7 @@ public class HelloApplication extends Application {
         LocalDate date;
         boolean completed;
 
-        AdvisedActivity(String title, String instructions,
-                        LocalDate date) {
+        AdvisedActivity(String title, String instructions, LocalDate date) {
             this.title = title;
             this.instructions = instructions;
             this.date = date;
@@ -76,11 +69,12 @@ public class HelloApplication extends Application {
         }
     }
 
-    // START
-
     @Override
     public void start(Stage primaryStage) {
         stage = primaryStage;
+
+        // Phuc: I created the main application window and connected
+        // the patient and healthcare provider parts of the program.
         stage.setTitle("Post-Surgery Recovery Log");
         stage.setMinWidth(580);
         stage.setMinHeight(720);
@@ -89,199 +83,166 @@ public class HelloApplication extends Application {
         stage.show();
     }
 
-    // UI HELPERS
+    private Button makeButton(String text, String background, String textColor) {
+        Button button = new Button(text);
 
-    private Button button(String text, String background,
-                          String foreground) {
-        Button b = new Button(text);
-        b.setStyle(
+        button.setStyle(
                 "-fx-background-color: " + background + ";" +
-                        "-fx-text-fill: " + foreground + ";" +
+                        "-fx-text-fill: " + textColor + ";" +
                         "-fx-background-radius: 9;" +
                         "-fx-font-size: 14px;" +
                         "-fx-cursor: hand;"
         );
-        b.setPadding(new Insets(11, 16, 11, 16));
 
-        b.setOnMouseEntered(e -> {
-            ScaleTransition t =
-                    new ScaleTransition(Duration.millis(120), b);
-            t.setToX(1.03);
-            t.setToY(1.03);
-            t.play();
+        button.setPadding(new Insets(10, 15, 10, 15));
+
+        button.setOnMouseEntered(e -> {
+            ScaleTransition scale = new ScaleTransition(Duration.millis(100), button);
+            scale.setToX(1.03);
+            scale.setToY(1.03);
+            scale.play();
         });
 
-        b.setOnMouseExited(e -> {
-            ScaleTransition t =
-                    new ScaleTransition(Duration.millis(120), b);
-            t.setToX(1);
-            t.setToY(1);
-            t.play();
+        button.setOnMouseExited(e -> {
+            ScaleTransition scale = new ScaleTransition(Duration.millis(100), button);
+            scale.setToX(1);
+            scale.setToY(1);
+            scale.play();
         });
 
-        return b;
+        return button;
     }
 
-    private VBox card() {
-        VBox v = new VBox(10);
-        v.setPadding(new Insets(17));
-        v.setMaxWidth(Double.MAX_VALUE);
-        v.setStyle(
-                "-fx-background-color: " + BG + ";" +
+    private VBox makeCard() {
+        VBox card = new VBox(8);
+        card.setPadding(new Insets(15));
+        card.setMaxWidth(Double.MAX_VALUE);
+
+        card.setStyle(
+                "-fx-background-color: " + BACKGROUND + ";" +
                         "-fx-background-radius: 12;" +
                         "-fx-border-color: #E1E6EE;" +
                         "-fx-border-radius: 12;"
         );
-        return v;
+
+        return card;
     }
 
     private Label heading(String text) {
-        Label l = new Label(text);
-        l.setStyle(
+        Label label = new Label(text);
+
+        label.setStyle(
                 "-fx-font-size: 21px;" +
                         "-fx-font-weight: bold;" +
                         "-fx-text-fill: " + BLUE + ";"
         );
-        return l;
+
+        return label;
     }
 
     private Label section(String text) {
-        Label l = new Label(text);
-        l.setMaxWidth(Double.MAX_VALUE);
-        l.setPadding(new Insets(12));
-        l.setStyle(
+        Label label = new Label(text);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setPadding(new Insets(10));
+
+        label.setStyle(
                 "-fx-background-color: #F0F0F5;" +
                         "-fx-text-fill: #666666;" +
-                        "-fx-font-size: 14px;" +
                         "-fx-font-weight: bold;"
         );
-        return l;
+
+        return label;
     }
 
-    private Label fieldLabel(String text) {
-        Label l = new Label(text);
-        l.setStyle(
-                "-fx-font-size: 14px;" +
-                        "-fx-font-weight: bold;"
-        );
-        return l;
-    }
-
-    private void alert(String title, String message) {
-        Alert a = new Alert(Alert.AlertType.WARNING);
-        a.setTitle(title);
-        a.setHeaderText(null);
-        a.setContentText(message);
-        a.showAndWait();
+    private void warning(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     private void info(String title, String message) {
-        Alert a = new Alert(Alert.AlertType.INFORMATION);
-        a.setTitle(title);
-        a.setHeaderText(null);
-        a.setContentText(message);
-        a.showAndWait();
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
-    private void display(BorderPane page) {
-        Scene scene = new Scene(page, 580, 720);
-        stage.setScene(scene);
+    // Phuc: I used one main window and changed the page when the user
+    // moves between the recovery log, entry form, and provider page.
+    private void changePage(BorderPane page) {
+        stage.setScene(new Scene(page, 580, 720));
 
-        FadeTransition fade =
-                new FadeTransition(Duration.millis(220), page);
+        FadeTransition fade = new FadeTransition(Duration.millis(180), page);
         fade.setFromValue(0);
         fade.setToValue(1);
         fade.play();
     }
 
-    private BorderPane header(String title, boolean home) {
-        BorderPane bar = new BorderPane();
-        bar.setPadding(new Insets(14, 18, 14, 18));
-        bar.setStyle("-fx-background-color: " + BLUE + ";");
+    private BorderPane makeHeader(String title, boolean homePage) {
+        BorderPane header = new BorderPane();
+        header.setPadding(new Insets(14, 18, 14, 18));
+        header.setStyle("-fx-background-color: " + BLUE + ";");
 
-        if (!home) {
-            Button back = button("‹ Back", BLUE, "white");
+        if (!homePage) {
+            Button back = makeButton("‹ Back", BLUE, "white");
             back.setOnAction(e -> showHome());
 
-            Label label = new Label(title);
-            label.setStyle(
+            Label pageTitle = new Label(title);
+            pageTitle.setStyle(
                     "-fx-text-fill: white;" +
                             "-fx-font-size: 18px;" +
                             "-fx-font-weight: bold;"
             );
 
-            bar.setLeft(back);
-            bar.setCenter(label);
-            return bar;
+            header.setLeft(back);
+            header.setCenter(pageTitle);
+            return header;
         }
 
-        Label appName = new Label("Recovery Log");
-        appName.setStyle(
+        Label appTitle = new Label("Recovery Log");
+        appTitle.setStyle(
                 "-fx-text-fill: white;" +
                         "-fx-font-size: 19px;" +
                         "-fx-font-weight: bold;"
         );
-        bar.setLeft(appName);
+
+        header.setLeft(appTitle);
 
         Label bell = new Label("🔔");
-        bell.setStyle("-fx-font-size: 25px; -fx-cursor: hand;");
+        bell.setStyle("-fx-font-size: 23px; -fx-cursor: hand;");
 
         Label badge = new Label("1");
         badge.setAlignment(Pos.CENTER);
-        badge.setPrefSize(19, 19);
-        badge.setMaxSize(19, 19);
+        badge.setPrefSize(18, 18);
+        badge.setMaxSize(18, 18);
+        badge.setVisible(unreadReminder);
+
         badge.setStyle(
                 "-fx-background-color: red;" +
                         "-fx-background-radius: 20;" +
                         "-fx-text-fill: white;" +
-                        "-fx-font-size: 11px;"
+                        "-fx-font-size: 10px;"
         );
-        badge.setVisible(unreadReminder);
 
         StackPane notification = new StackPane(bell, badge);
         StackPane.setAlignment(badge, Pos.TOP_RIGHT);
-        notification.setPrefSize(44, 44);
-        notification.setStyle("-fx-cursor: hand;");
 
         notification.setOnMouseClicked(e -> {
-            TranslateTransition shake =
-                    new TranslateTransition(Duration.millis(65), bell);
-            shake.setFromX(-5);
-            shake.setToX(5);
-            shake.setCycleCount(8);
-            shake.setAutoReverse(true);
-            shake.play();
-
-            if (activities.isEmpty()) {
-                info("Notifications", "No advised activities yet.");
-            } else {
-                StringBuilder message = new StringBuilder();
-                for (AdvisedActivity a : activities) {
-                    if (!a.completed) {
-                        message.append("• ")
-                                .append(a.title)
-                                .append(" — ")
-                                .append(a.date.format(DATE_FORMAT))
-                                .append("\n");
-                    }
-                }
-                info("Advised Activities",
-                        message.length() == 0
-                                ? "All activities are completed."
-                                : message.toString());
-            }
-
+            showNotifications();
             unreadReminder = false;
             badge.setVisible(false);
         });
 
-        Button add = button("+", BLUE, "white");
+        Button add = makeButton("+", BLUE, "white");
         add.setStyle(
                 "-fx-background-color: transparent;" +
                         "-fx-text-fill: white;" +
-                        "-fx-font-size: 29px;" +
-                        "-fx-cursor: hand;"
+                        "-fx-font-size: 28px;"
         );
+
         add.setOnAction(e -> {
             if (providerMode) {
                 showAddActivity();
@@ -290,119 +251,131 @@ public class HelloApplication extends Application {
             }
         });
 
-        HBox actions = new HBox(10, notification, add);
-        actions.setAlignment(Pos.CENTER_RIGHT);
-        bar.setRight(actions);
-        return bar;
+        HBox right = new HBox(8, notification, add);
+        right.setAlignment(Pos.CENTER_RIGHT);
+        header.setRight(right);
+
+        return header;
     }
 
-    // HOME
+    private void showNotifications() {
+        if (activities.isEmpty()) {
+            info("Notifications", "No advised activities yet.");
+            return;
+        }
 
+        StringBuilder message = new StringBuilder();
+
+        for (AdvisedActivity activity : activities) {
+            if (!activity.completed) {
+                message.append("• ")
+                        .append(activity.title)
+                        .append(" - ")
+                        .append(activity.date.format(DATE_FORMAT))
+                        .append("\n");
+            }
+        }
+
+        if (message.isEmpty()) {
+            info("Advised Activities", "All activities are completed.");
+        } else {
+            info("Advised Activities", message.toString());
+        }
+    }
+
+    // Phuc: I connected the role selector so we can demonstrate
+    // both the patient side and healthcare provider side in one program.
     private void showHome() {
         BorderPane page = new BorderPane();
         page.setStyle("-fx-background-color: white;");
-        page.setTop(header("Recovery Log", true));
+        page.setTop(makeHeader("Recovery Log", true));
 
-        VBox content = new VBox(16);
+        VBox content = new VBox(15);
         content.setPadding(new Insets(20));
 
-        HBox roleRow = new HBox(12);
-        roleRow.setAlignment(Pos.CENTER_LEFT);
-
-        Label roleText = fieldLabel("Demo Role:");
+        Label roleLabel = new Label("Demo Role:");
 
         ComboBox<String> role = new ComboBox<>();
         role.getItems().addAll("Patient", "Healthcare Provider");
-        role.setValue(providerMode
-                ? "Healthcare Provider" : "Patient");
+        role.setValue(providerMode ? "Healthcare Provider" : "Patient");
 
         role.setOnAction(e -> {
-            providerMode = "Healthcare Provider"
-                    .equals(role.getValue());
+            providerMode = role.getValue().equals("Healthcare Provider");
             showHome();
         });
 
-        roleRow.getChildren().addAll(roleText, role);
-        content.getChildren().add(roleRow);
+        HBox roleBox = new HBox(10, roleLabel, role);
+        roleBox.setAlignment(Pos.CENTER_LEFT);
+
+        content.getChildren().add(roleBox);
 
         if (providerMode) {
-            buildProviderDashboard(content);
+            buildProviderPage(content);
         } else {
-            buildPatientDashboard(content);
+            buildPatientPage(content);
         }
 
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
-        scroll.setStyle(
-                "-fx-background: white;" +
-                        "-fx-background-color: white;"
-        );
         page.setCenter(scroll);
 
-        display(page);
+        changePage(page);
     }
 
-    // PATIENT
-
-    private void buildPatientDashboard(VBox content) {
+    // Johnathan: I worked on the patient interface where the patient
+    // can view recovery entries, use the calendar, and see activities.
+    private void buildPatientPage(VBox content) {
         content.getChildren().add(heading("My Recovery"));
 
-        HBox toggles = new HBox(10);
-
-        Button calendar = button(
+        Button calendarButton = makeButton(
                 "Calendar",
-                listMode ? PALE : BLUE,
+                listMode ? PALE_BLUE : BLUE,
                 listMode ? BLUE : "white"
         );
 
-        Button list = button(
+        Button listButton = makeButton(
                 "List",
-                listMode ? BLUE : PALE,
+                listMode ? BLUE : PALE_BLUE,
                 listMode ? "white" : BLUE
         );
 
-        calendar.setOnAction(e -> {
+        calendarButton.setOnAction(e -> {
             listMode = false;
             showHome();
         });
 
-        list.setOnAction(e -> {
+        listButton.setOnAction(e -> {
             listMode = true;
             showHome();
         });
 
-        toggles.getChildren().addAll(calendar, list);
-        content.getChildren().add(toggles);
+        content.getChildren().add(new HBox(10, calendarButton, listButton));
 
         if (!listMode) {
-            content.getChildren().add(createCalendar());
+            content.getChildren().add(makeCalendar());
         }
 
         content.getChildren().add(section("RECOVERY LOG"));
 
-        List<RecoveryEntry> visible = new ArrayList<>();
+        List<RecoveryEntry> visibleEntries = new ArrayList<>();
+
         for (RecoveryEntry entry : entries) {
             if (listMode || entry.date.equals(selectedDate)) {
-                visible.add(entry);
+                visibleEntries.add(entry);
             }
         }
 
-        visible.sort(Comparator.comparing(
-                (RecoveryEntry e) -> e.date
-        ).reversed());
+        visibleEntries.sort(
+                Comparator.comparing((RecoveryEntry entry) -> entry.date).reversed()
+        );
 
-        if (visible.isEmpty()) {
-            Label empty = new Label(
-                    "No recovery entries yet.\nClick + to add a note or photo."
+        if (visibleEntries.isEmpty()) {
+            content.getChildren().add(
+                    new Label("No recovery entries yet.\nClick + to add a note or photo.")
             );
-            empty.setStyle(
-                    "-fx-text-fill: #777777;" +
-                            "-fx-font-size: 15px;"
-            );
-            content.getChildren().add(empty);
         } else {
-            for (RecoveryEntry entry : visible) {
-                content.getChildren().add(entryCard(entry));
+            for (RecoveryEntry entry : visibleEntries) {
+                content.getChildren().add(makeEntryCard(entry));
             }
         }
 
@@ -413,90 +386,81 @@ public class HelloApplication extends Application {
                     new Label("No activities assigned by the provider.")
             );
         } else {
-            for (AdvisedActivity a : activities) {
-                content.getChildren().add(activityCard(a, true));
+            for (AdvisedActivity activity : activities) {
+                content.getChildren().add(makeActivityCard(activity, true));
             }
         }
     }
 
-    // PROVIDER
-    private void buildProviderDashboard(VBox content) {
+    // Emmanuel: I worked on the healthcare provider page so the provider
+    // can review patient recovery information and add advised activities.
+    private void buildProviderPage(VBox content) {
         content.getChildren().add(
                 heading("Healthcare Provider Dashboard")
         );
 
         Label description = new Label(
-                "Review patient recovery notes, view photos, " +
-                        "and create advised activities."
+                "Review patient recovery notes, photos, and advised activities."
         );
         description.setWrapText(true);
-        description.setStyle("-fx-text-fill: #777777;");
 
-        Button create = button(
-                "+ Create Advised Activity", BLUE, "white"
+        Button createActivity = makeButton(
+                "+ Create Advised Activity",
+                BLUE,
+                "white"
         );
-        create.setOnAction(e -> showAddActivity());
 
-        content.getChildren().addAll(description, create);
-        content.getChildren().add(
-                section("PATIENT RECOVERY ENTRIES")
-        );
+        createActivity.setOnAction(e -> showAddActivity());
+
+        content.getChildren().addAll(description, createActivity);
+        content.getChildren().add(section("PATIENT RECOVERY ENTRIES"));
 
         if (entries.isEmpty()) {
             content.getChildren().add(
                     new Label("No patient entries have been added.")
             );
         } else {
-            List<RecoveryEntry> sorted = new ArrayList<>(entries);
-            sorted.sort(Comparator.comparing(
-                    (RecoveryEntry e) -> e.date
-            ).reversed());
+            List<RecoveryEntry> sortedEntries = new ArrayList<>(entries);
 
-            for (RecoveryEntry entry : sorted) {
-                content.getChildren().add(entryCard(entry));
+            sortedEntries.sort(
+                    Comparator.comparing((RecoveryEntry entry) -> entry.date).reversed()
+            );
+
+            for (RecoveryEntry entry : sortedEntries) {
+                content.getChildren().add(makeEntryCard(entry));
             }
         }
 
-        content.getChildren().add(
-                section("PROVIDER ADVISED ACTIVITIES")
-        );
+        content.getChildren().add(section("PROVIDER ADVISED ACTIVITIES"));
 
         if (activities.isEmpty()) {
             content.getChildren().add(
                     new Label("No advised activities created yet.")
             );
         } else {
-            for (AdvisedActivity a : activities) {
-                content.getChildren().add(activityCard(a, false));
+            for (AdvisedActivity activity : activities) {
+                content.getChildren().add(makeActivityCard(activity, false));
             }
         }
     }
 
-    // CALENDAR
-
-    private VBox createCalendar() {
-        VBox box = new VBox(15);
+    // Johnathan: I added the calendar so the patient can choose a date
+    // and look at recovery information for that day.
+    private VBox makeCalendar() {
+        VBox box = new VBox(12);
         box.setAlignment(Pos.CENTER);
         box.setPadding(new Insets(15));
+
         box.setStyle(
-                "-fx-background-color: " + BG + ";" +
+                "-fx-background-color: " + BACKGROUND + ";" +
                         "-fx-background-radius: 12;"
         );
 
-        HBox nav = new HBox(22);
-        nav.setAlignment(Pos.CENTER);
-
-        Button previous = button("‹", "white", BLUE);
-        Button next = button("›", "white", BLUE);
+        Button previous = makeButton("‹", "white", BLUE);
+        Button next = makeButton("›", "white", BLUE);
 
         Label month = new Label(
-                selectedDate.format(
-                        DateTimeFormatter.ofPattern("MMMM yyyy")
-                )
-        );
-        month.setStyle(
-                "-fx-font-size: 21px;" +
-                        "-fx-text-fill: " + BLUE + ";"
+                selectedDate.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
         );
 
         previous.setOnAction(e -> {
@@ -509,16 +473,15 @@ public class HelloApplication extends Application {
             showHome();
         });
 
-        nav.getChildren().addAll(previous, month, next);
+        HBox navigation = new HBox(20, previous, month, next);
+        navigation.setAlignment(Pos.CENTER);
 
         GridPane grid = new GridPane();
-        grid.setAlignment(Pos.CENTER);
         grid.setHgap(8);
-        grid.setVgap(8);
+        grid.setAlignment(Pos.CENTER);
 
-        String[] names = {
-                "Sun", "Mon", "Tue", "Wed",
-                "Thu", "Fri", "Sat"
+        String[] dayNames = {
+                "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
         };
 
         LocalDate sunday = selectedDate.minusDays(
@@ -528,27 +491,20 @@ public class HelloApplication extends Application {
         for (int i = 0; i < 7; i++) {
             LocalDate date = sunday.plusDays(i);
 
-            VBox day = new VBox(6);
-            day.setAlignment(Pos.CENTER);
-            day.setPrefWidth(55);
-
-            Label name = new Label(names[i]);
-            name.setStyle("-fx-text-fill: " + BLUE + ";");
+            Label dayName = new Label(dayNames[i]);
 
             Button dateButton = new Button(
                     String.valueOf(date.getDayOfMonth())
             );
-            dateButton.setPrefSize(42, 42);
 
             boolean selected = date.equals(selectedDate);
 
             dateButton.setStyle(
                     "-fx-background-color: " +
-                            (selected ? SKY : "white") + ";" +
+                            (selected ? LIGHT_BLUE : "white") + ";" +
                             "-fx-text-fill: " +
-                            (selected ? "white" : "#333333") + ";" +
-                            "-fx-background-radius: 50;" +
-                            "-fx-cursor: hand;"
+                            (selected ? "white" : "black") + ";" +
+                            "-fx-background-radius: 30;"
             );
 
             dateButton.setOnAction(e -> {
@@ -556,87 +512,20 @@ public class HelloApplication extends Application {
                 showHome();
             });
 
-            day.getChildren().addAll(name, dateButton);
+            VBox day = new VBox(5, dayName, dateButton);
+            day.setAlignment(Pos.CENTER);
+
             grid.add(day, i, 0);
         }
 
-        box.getChildren().addAll(nav, grid);
+        box.getChildren().addAll(navigation, grid);
         return box;
     }
 
-    // RECOVERY CARD
+    private VBox makeEntryCard(RecoveryEntry entry) {
+        VBox entryCard = makeCard();
 
-    private VBox entryCard(RecoveryEntry entry) {
-        VBox box = card();
-
-        Label title = heading(entry.type);
-        title.setStyle(
-                "-fx-font-size: 17px;" +
-                        "-fx-font-weight: bold;" +
-                        "-fx-text-fill: " + BLUE + ";"
-        );
-
-        Label date = new Label(entry.date.format(DATE_FORMAT));
-        date.setStyle("-fx-text-fill: #777777;");
-
-        box.getChildren().addAll(title, date);
-
-        if (!entry.note.isBlank()) {
-            Label note = new Label(entry.note);
-            note.setWrapText(true);
-            box.getChildren().add(note);
-        }
-
-        if (entry.photoPath != null) {
-            Button view = button("📷 View Photo", PALE, BLUE);
-            view.setOnAction(e -> viewPhoto(entry.photoPath));
-            box.getChildren().add(view);
-        }
-
-        return box;
-    }
-
-    // VIEW PHOTO
-
-    private void viewPhoto(String photoPath) {
-        File file = new File(photoPath);
-
-        if (!file.isFile()) {
-            alert("Photo Error", "The photo file was not found.");
-            return;
-        }
-
-        Image image = new Image(file.toURI().toString(), false);
-
-        if (image.isError()) {
-            alert("Photo Error", "Unable to open this photo.");
-            return;
-        }
-
-        ImageView imageView = new ImageView(image);
-        imageView.setPreserveRatio(true);
-        imageView.setFitWidth(700);
-        imageView.setFitHeight(520);
-
-        StackPane viewer = new StackPane(imageView);
-        viewer.setPadding(new Insets(20));
-        viewer.setStyle("-fx-background-color: #202020;");
-
-        Stage photoWindow = new Stage();
-        photoWindow.initOwner(stage);
-        photoWindow.initModality(Modality.NONE);
-        photoWindow.setTitle("View Recovery Photo");
-        photoWindow.setScene(new Scene(viewer, 750, 570));
-        photoWindow.show();
-    }
-
-    // ACTIVITY CARD
-
-    private VBox activityCard(AdvisedActivity a,
-                              boolean patientView) {
-        VBox box = card();
-
-        Label title = heading(a.title);
+        Label title = new Label(entry.type);
         title.setStyle(
                 "-fx-font-size: 17px;" +
                         "-fx-font-weight: bold;" +
@@ -644,53 +533,131 @@ public class HelloApplication extends Application {
         );
 
         Label date = new Label(
-                "Advised for: " + a.date.format(DATE_FORMAT)
+                entry.date.format(DATE_FORMAT)
         );
 
-        Label instructions = new Label(a.instructions);
+        entryCard.getChildren().addAll(title, date);
+
+        if (!entry.note.isBlank()) {
+            Label note = new Label(entry.note);
+            note.setWrapText(true);
+            entryCard.getChildren().add(note);
+        }
+
+        if (entry.photoPath != null) {
+            Button viewPhoto = makeButton(
+                    "📷 View Photo",
+                    PALE_BLUE,
+                    BLUE
+            );
+
+            viewPhoto.setOnAction(e ->
+                    openPhoto(entry.photoPath)
+            );
+
+            entryCard.getChildren().add(viewPhoto);
+        }
+
+        return entryCard;
+    }
+
+    // Johnathan: I added the View Photo option so a patient or provider
+    // can open the recovery picture that was attached to an entry.
+    private void openPhoto(String photoPath) {
+        File file = new File(photoPath);
+
+        if (!file.exists()) {
+            warning("Photo Error", "The photo file was not found.");
+            return;
+        }
+
+        Image image = new Image(file.toURI().toString());
+
+        if (image.isError()) {
+            warning("Photo Error", "The photo could not be opened.");
+            return;
+        }
+
+        ImageView view = new ImageView(image);
+        view.setPreserveRatio(true);
+        view.setFitWidth(700);
+        view.setFitHeight(500);
+
+        StackPane root = new StackPane(view);
+        root.setPadding(new Insets(20));
+        root.setStyle("-fx-background-color: #202020;");
+
+        Stage photoWindow = new Stage();
+        photoWindow.setTitle("Recovery Photo");
+        photoWindow.setScene(new Scene(root, 750, 550));
+        photoWindow.show();
+    }
+
+    private VBox makeActivityCard(
+            AdvisedActivity activity,
+            boolean patientView) {
+
+        VBox activityCard = makeCard();
+
+        Label title = new Label(activity.title);
+        title.setStyle(
+                "-fx-font-size: 17px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-text-fill: " + BLUE + ";"
+        );
+
+        Label date = new Label(
+                "Advised for: " +
+                        activity.date.format(DATE_FORMAT)
+        );
+
+        Label instructions = new Label(activity.instructions);
         instructions.setWrapText(true);
 
         Label status = new Label(
-                a.completed ? "Status: Completed" : "Status: Pending"
-        );
-        status.setStyle(
-                "-fx-text-fill: " +
-                        (a.completed ? "#24864A" : "#B7791F") + ";"
+                activity.completed
+                        ? "Status: Completed"
+                        : "Status: Pending"
         );
 
-        box.getChildren().addAll(
-                title, date, instructions, status
+        activityCard.getChildren().addAll(
+                title,
+                date,
+                instructions,
+                status
         );
 
         if (patientView) {
-            Button update = button(
-                    a.completed ? "Mark Pending" : "Mark Completed",
-                    BLUE, "white"
+            Button complete = makeButton(
+                    activity.completed
+                            ? "Mark Pending"
+                            : "Mark Completed",
+                    BLUE,
+                    "white"
             );
 
-            update.setOnAction(e -> {
-                a.completed = !a.completed;
+            complete.setOnAction(e -> {
+                activity.completed = !activity.completed;
                 showHome();
             });
 
-            box.getChildren().add(update);
+            activityCard.getChildren().add(complete);
         }
 
-        return box;
+        return activityCard;
     }
 
-    // ADD PATIENT ENTRY
-
+    // Johnathan: I added the recovery entry form so the patient
+    // can select a date, write a recovery note, and attach a photo.
     private void showAddEntry() {
         BorderPane page = new BorderPane();
         page.setStyle("-fx-background-color: white;");
-        page.setTop(header("New Recovery Entry", false));
+        page.setTop(makeHeader("New Recovery Entry", false));
 
-        VBox form = new VBox(17);
+        VBox form = new VBox(15);
         form.setPadding(new Insets(30));
 
-        DatePicker date = new DatePicker(selectedDate);
-        date.setMaxWidth(Double.MAX_VALUE);
+        DatePicker datePicker = new DatePicker(selectedDate);
 
         ComboBox<String> type = new ComboBox<>();
         type.getItems().addAll(
@@ -699,43 +666,43 @@ public class HelloApplication extends Application {
                 "Activity Update"
         );
         type.setPromptText("Select entry type");
-        type.setMaxWidth(Double.MAX_VALUE);
 
         TextArea note = new TextArea();
-        note.setPromptText(
-                "Describe your recovery progress..."
-        );
+        note.setPromptText("Describe your recovery progress...");
         note.setWrapText(true);
-        note.setPrefHeight(170);
-
-        Label photoName = new Label("No photo selected");
-        photoName.setStyle("-fx-text-fill: #777777;");
+        note.setPrefHeight(150);
 
         final String[] photoPath = {null};
 
-        Button addPhoto = button("📷 Add Photo", PALE, BLUE);
-        addPhoto.setMaxWidth(Double.MAX_VALUE);
+        Label photoName = new Label("No photo selected");
+
+        Button addPhoto = makeButton(
+                "📷 Add Photo",
+                PALE_BLUE,
+                BLUE
+        );
 
         addPhoto.setOnAction(e -> {
             FileChooser chooser = new FileChooser();
             chooser.setTitle("Select Recovery Photo");
+
             chooser.getExtensionFilters().add(
                     new FileChooser.ExtensionFilter(
-                            "Images",
-                            "*.png", "*.jpg", "*.jpeg", "*.gif"
+                            "Image Files",
+                            "*.png",
+                            "*.jpg",
+                            "*.jpeg",
+                            "*.gif"
                     )
             );
 
             File file = chooser.showOpenDialog(stage);
 
             if (file != null) {
-                Image test = new Image(
-                        file.toURI().toString(), false
-                );
+                Image testImage = new Image(file.toURI().toString());
 
-                if (test.isError()) {
-                    alert("Photo Error",
-                            "This image could not be opened.");
+                if (testImage.isError()) {
+                    warning("Photo Error", "This image could not be opened.");
                     return;
                 }
 
@@ -744,120 +711,139 @@ public class HelloApplication extends Application {
             }
         });
 
-        Button save = button("Save Recovery Entry", BLUE, "white");
-        save.setMaxWidth(Double.MAX_VALUE);
-        save.setPrefHeight(48);
+        Button save = makeButton(
+                "Save Recovery Entry",
+                BLUE,
+                "white"
+        );
 
         save.setOnAction(e -> {
-            if (type.getValue() == null || date.getValue() == null) {
-                alert("Missing Information",
-                        "Select an entry type and date.");
+            if (type.getValue() == null ||
+                    datePicker.getValue() == null) {
+
+                warning(
+                        "Missing Information",
+                        "Select an entry type and date."
+                );
                 return;
             }
 
-            String text = note.getText().trim();
+            String noteText = note.getText().trim();
 
-            if (text.isEmpty() && photoPath[0] == null) {
-                alert("Missing Information",
-                        "Enter a note or add a photo.");
+            if (noteText.isEmpty() && photoPath[0] == null) {
+                warning(
+                        "Missing Information",
+                        "Enter a note or add a photo."
+                );
                 return;
             }
 
-            entries.add(new RecoveryEntry(
-                    type.getValue(),
-                    text,
-                    photoPath[0],
-                    date.getValue()
-            ));
+            entries.add(
+                    new RecoveryEntry(
+                            type.getValue(),
+                            noteText,
+                            photoPath[0],
+                            datePicker.getValue()
+                    )
+            );
 
-            selectedDate = date.getValue();
+            selectedDate = datePicker.getValue();
             listMode = false;
             showHome();
         });
 
         form.getChildren().addAll(
-                fieldLabel("Entry Date"),
-                date,
-                fieldLabel("Entry Type"),
+                new Label("Entry Date"),
+                datePicker,
+                new Label("Entry Type"),
                 type,
-                fieldLabel("Recovery Note"),
+                new Label("Recovery Note"),
                 note,
                 addPhoto,
                 photoName,
                 save
         );
 
-        ScrollPane scroll = new ScrollPane(form);
-        scroll.setFitToWidth(true);
-        page.setCenter(scroll);
-
-        display(page);
+        page.setCenter(form);
+        changePage(page);
     }
 
-    // ADD PROVIDER ACTIVITY
-
+    // Emmanuel: I added the advised activity form so the healthcare
+    // provider can give the patient an activity and instructions.
     private void showAddActivity() {
         BorderPane page = new BorderPane();
         page.setStyle("-fx-background-color: white;");
-        page.setTop(header("Create Advised Activity", false));
 
-        VBox form = new VBox(18);
+        page.setTop(
+                makeHeader(
+                        "Create Advised Activity",
+                        false
+                )
+        );
+
+        VBox form = new VBox(15);
         form.setPadding(new Insets(30));
 
         TextField title = new TextField();
         title.setPromptText("Example: Daily Walking");
 
         TextArea instructions = new TextArea();
-        instructions.setPromptText(
-                "Enter the provider's advised activity..."
-        );
+        instructions.setPromptText("Enter provider instructions...");
         instructions.setWrapText(true);
-        instructions.setPrefHeight(160);
+        instructions.setPrefHeight(150);
 
-        DatePicker date = new DatePicker(LocalDate.now());
-        date.setMaxWidth(Double.MAX_VALUE);
+        DatePicker datePicker =
+                new DatePicker(LocalDate.now());
 
-        Button save = button(
-                "Save Advised Activity", BLUE, "white"
+        Button save = makeButton(
+                "Save Advised Activity",
+                BLUE,
+                "white"
         );
-        save.setMaxWidth(Double.MAX_VALUE);
 
         save.setOnAction(e -> {
-            String name = title.getText().trim();
-            String details = instructions.getText().trim();
+            String activityTitle = title.getText().trim();
+            String activityInstructions = instructions.getText().trim();
 
-            if (name.isEmpty() ||
-                    details.isEmpty() ||
-                    date.getValue() == null) {
-                alert("Missing Information",
-                        "Complete all activity fields.");
+            if (activityTitle.isEmpty() ||
+                    activityInstructions.isEmpty() ||
+                    datePicker.getValue() == null) {
+
+                warning(
+                        "Missing Information",
+                        "Complete all activity fields."
+                );
                 return;
             }
 
-            activities.add(new AdvisedActivity(
-                    name, details, date.getValue()
-            ));
+            activities.add(
+                    new AdvisedActivity(
+                            activityTitle,
+                            activityInstructions,
+                            datePicker.getValue()
+                    )
+            );
 
             unreadReminder = true;
             showHome();
         });
 
         form.getChildren().addAll(
-                fieldLabel("Activity Title"),
+                new Label("Activity Title"),
                 title,
-                fieldLabel("Provider Instructions"),
+                new Label("Provider Instructions"),
                 instructions,
-                fieldLabel("Activity Date"),
-                date,
+                new Label("Activity Date"),
+                datePicker,
                 save
         );
 
-        ScrollPane scroll = new ScrollPane(form);
-        scroll.setFitToWidth(true);
-        page.setCenter(scroll);
-
-        display(page);
+        page.setCenter(form);
+        changePage(page);
     }
+
+    // Pedro: I tested the recovery entry, photo upload/view, patient page, provider page, and activity features before
+    // the Sprint demonstration to make sure the program worked.
 
     public static void main(String[] args) {
         launch(args);
