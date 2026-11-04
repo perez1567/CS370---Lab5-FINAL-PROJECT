@@ -233,17 +233,11 @@ public class HelloApplication extends Application {
 
 
     private void display(BorderPane page) {
-
-        Scene scene = new Scene(page, 580, 720);
-
-        stage.setScene(scene);
-
-        FadeTransition fade =
-                new FadeTransition(Duration.millis(220), page);
-
-        fade.setFromValue(0);
-        fade.setToValue(1);
-        fade.play();
+        if (stage.getScene() == null) {
+            stage.setScene(new Scene(page, 580, 720));
+        } else {
+            stage.getScene().setRoot(page);
+        }
     }
 
 
