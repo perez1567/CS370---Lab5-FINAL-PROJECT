@@ -39,6 +39,8 @@ public class HelloApplication extends Application {
     //Create date system
     private LocalDate selectedDate = LocalDate.now();
     private boolean providerMode = false;
+    private String loggedInName;
+    private String loggedInRole;
     private boolean listMode = false;
     private boolean unreadReminder = false;
 
@@ -96,11 +98,61 @@ public class HelloApplication extends Application {
         stage.setMinWidth(580);
         stage.setMinHeight(720);
 
-        showHome();
+        showLogin();
 
         stage.show();
     }
 
+
+    // Classroom prototype: accepts any non-empty username and password.
+    // No authentication or password storage is performed.
+    private void showLogin() {
+        BorderPane page = new BorderPane();
+        page.setStyle("-fx-background-color: white;");
+
+        VBox form = new VBox(15);
+        form.setAlignment(Pos.CENTER);
+        form.setPadding(new Insets(35));
+        form.setMaxWidth(420);
+
+        Label title = heading("Post-Surgery Recovery Log");
+        Label subtitle = new Label("Enter any username and password to continue");
+        TextField username = new TextField();
+        username.setPromptText("Username");
+        PasswordField password = new PasswordField();
+        password.setPromptText("Password");
+        Label error = new Label();
+        error.setStyle("-fx-text-fill: #B42318;");
+        error.setWrapText(true);
+
+        Button signIn = button("Log In", BLUE, "white");
+        signIn.setMaxWidth(Double.MAX_VALUE);
+        signIn.setDefaultButton(true);
+        signIn.setOnAction(e -> {
+            String user = username.getText().trim();
+            if (user.isEmpty() || password.getText().isEmpty()) {
+                error.setText("Please enter a username and password.");
+                return;
+            }
+            loggedInName = user;
+            loggedInRole = "Client";
+            providerMode = false;
+            password.clear();
+            showHome();
+        });
+
+        form.getChildren().addAll(title, subtitle, fieldLabel("Username"),
+                username, fieldLabel("Password"), password, signIn, error);
+        page.setCenter(form);
+        display(page);
+    }
+
+    private void logout() {
+        loggedInName = null;
+        loggedInRole = null;
+        providerMode = false;
+        showLogin();
+    }
 
     //UI helpers
     //includes features for the following: button, vertical box, header, label,
@@ -455,56 +507,20 @@ public class HelloApplication extends Application {
         );
 
 
-        HBox roleRow =
-                new HBox(12);
+        if (loggedInName == null) {
+            showLogin();
+            return;
+        }
 
-        roleRow.setAlignment(
-                Pos.CENTER_LEFT
-        );
-
-
-        Label roleText =
-                fieldLabel("Demo Role:");
-
-
-        ComboBox<String> role =
-                new ComboBox<>();
-
-        role.getItems().addAll(
-                "Patient",
-                "Healthcare Provider"
-        );
-
-
-        role.setValue(
-                providerMode
-                        ? "Healthcare Provider"
-                        : "Patient"
-        );
-
-
-        role.setOnAction(e -> {
-
-            providerMode =
-                    "Healthcare Provider"
-                            .equals(
-                                    role.getValue()
-                            );
-
-            showHome();
-        });
-
-
-        roleRow.getChildren().addAll(
-                roleText,
-                role
-        );
-
-
-        content.getChildren().add(
-                roleRow
-        );
-
+        VBox welcome = card();
+        Label welcomeTitle = heading("Welcome, " + loggedInName + "!");
+        Label currentDate = new Label("Today: " + LocalDate.now().format(
+                DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy")));
+        Label roleLabel = fieldLabel("Role: " + loggedInRole);
+        Button logoutButton = button("Log Out", PALE, BLUE);
+        logoutButton.setOnAction(e -> logout());
+        welcome.getChildren().addAll(welcomeTitle, currentDate, roleLabel, logoutButton);
+        content.getChildren().add(welcome);
 
         if (providerMode) {
 
