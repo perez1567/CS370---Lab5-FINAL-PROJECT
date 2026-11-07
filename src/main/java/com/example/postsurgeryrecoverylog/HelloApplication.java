@@ -39,6 +39,8 @@ public class HelloApplication extends Application {
     //Create date system
     private LocalDate selectedDate = LocalDate.now();
     private boolean providerMode = false;
+    private String loggedInName;
+    private String loggedInRole;
     private boolean listMode = false;
     private boolean unreadReminder = false;
 
@@ -96,11 +98,61 @@ public class HelloApplication extends Application {
         stage.setMinWidth(580);
         stage.setMinHeight(720);
 
-        showHome();
+        showLogin();
 
         stage.show();
     }
 
+
+    // Classroom prototype: accepts any non-empty username and password.
+    // No authentication or password storage is performed.
+    private void showLogin() {
+        BorderPane page = new BorderPane();
+        page.setStyle("-fx-background-color: white;");
+
+        VBox form = new VBox(15);
+        form.setAlignment(Pos.CENTER);
+        form.setPadding(new Insets(35));
+        form.setMaxWidth(420);
+
+        Label title = heading("Post-Surgery Recovery Log");
+        Label subtitle = new Label("Enter any username and password to continue");
+        TextField username = new TextField();
+        username.setPromptText("Username");
+        PasswordField password = new PasswordField();
+        password.setPromptText("Password");
+        Label error = new Label();
+        error.setStyle("-fx-text-fill: #B42318;");
+        error.setWrapText(true);
+
+        Button signIn = button("Log In", BLUE, "white");
+        signIn.setMaxWidth(Double.MAX_VALUE);
+        signIn.setDefaultButton(true);
+        signIn.setOnAction(e -> {
+            String user = username.getText().trim();
+            if (user.isEmpty() || password.getText().isEmpty()) {
+                error.setText("Please enter a username and password.");
+                return;
+            }
+            loggedInName = user;
+            loggedInRole = "Client";
+            providerMode = false;
+            password.clear();
+            showHome();
+        });
+
+        form.getChildren().addAll(title, subtitle, fieldLabel("Username"),
+                username, fieldLabel("Password"), password, signIn, error);
+        page.setCenter(form);
+        display(page);
+    }
+
+    private void logout() {
+        loggedInName = null;
+        loggedInRole = null;
+        providerMode = false;
+        showLogin();
+    }
 
     //UI helpers
     //includes features for the following: button, vertical box, header, label,
@@ -455,56 +507,20 @@ public class HelloApplication extends Application {
         );
 
 
-        HBox roleRow =
-                new HBox(12);
+        if (loggedInName == null) {
+            showLogin();
+            return;
+        }
 
-        roleRow.setAlignment(
-                Pos.CENTER_LEFT
-        );
-
-
-        Label roleText =
-                fieldLabel("Demo Role:");
-
-
-        ComboBox<String> role =
-                new ComboBox<>();
-
-        role.getItems().addAll(
-                "Patient",
-                "Healthcare Provider"
-        );
-
-
-        role.setValue(
-                providerMode
-                        ? "Healthcare Provider"
-                        : "Patient"
-        );
-
-
-        role.setOnAction(e -> {
-
-            providerMode =
-                    "Healthcare Provider"
-                            .equals(
-                                    role.getValue()
-                            );
-
-            showHome();
-        });
-
-
-        roleRow.getChildren().addAll(
-                roleText,
-                role
-        );
-
-
-        content.getChildren().add(
-                roleRow
-        );
-
+        VBox welcome = card();
+        Label welcomeTitle = heading("Welcome, " + loggedInName + "!");
+        Label currentDate = new Label("Today: " + LocalDate.now().format(
+                DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy")));
+        Label roleLabel = fieldLabel("Role: " + loggedInRole);
+        Button logoutButton = button("Log Out", PALE, BLUE);
+        logoutButton.setOnAction(e -> logout());
+        welcome.getChildren().addAll(welcomeTitle, currentDate, roleLabel, logoutButton);
+        content.getChildren().add(welcome);
 
         if (providerMode) {
 
@@ -1293,260 +1309,251 @@ public class HelloApplication extends Application {
     //If selecting photo, will choose from local computer
     //Missing information will prompt user an alert
     private void showAddEntry() {
+        BorderPane page = new BorderPane();
+        page.setStyle("-fx-background-color: white;");
+        page.setTop(header("New Recovery Entry", false));
 
-        BorderPane page =
-                new BorderPane();
+        VBox form = new VBox(17);
+        form.setPadding(new Insets(30));
 
+        DatePicker date = new DatePicker(selectedDate);
+        date.setMaxWidth(Double.MAX_VALUE);
 
-        page.setStyle(
-                "-fx-background-color: white;"
+        ComboBox<String> type = new ComboBox<>();
+        type.getItems().addAll("Recovery Note", "Recovery Photo", "Activity Update", "Meal Entry");
+        type.setPromptText("Select entry type");
+        type.setMaxWidth(Double.MAX_VALUE);
+
+        // Workout information
+        TextField workoutName = new TextField();
+        workoutName.setPromptText("Example: walking or prescribed exercises");
+
+        TextField workoutMinutes = new TextField();
+        workoutMinutes.setPromptText("Enter whole minutes, for example 15");
+
+        ComboBox<String> effort = new ComboBox<>();
+        effort.getItems().addAll("Light", "Moderate", "Hard");
+        effort.setPromptText("Select effort level");
+        effort.setMaxWidth(Double.MAX_VALUE);
+
+        // Recovery questions
+        ComboBox<Integer> discomfort = new ComboBox<>();
+        for (int score = 0; score <= 10; score++) {
+            discomfort.getItems().add(score);
+        }
+        discomfort.setPromptText("Select a score");
+        discomfort.setMaxWidth(Double.MAX_VALUE);
+
+        ComboBox<String> planFollowed = new ComboBox<>();
+        planFollowed.getItems().addAll("Yes", "Partly", "No", "No plan assigned");
+        planFollowed.setPromptText("Select an answer");
+        planFollowed.setMaxWidth(Double.MAX_VALUE);
+
+        TextArea feedback = new TextArea();
+        feedback.setPromptText("What felt difficult, or what would you like "
+                + "your provider to know?");
+        feedback.setWrapText(true);
+        feedback.setPrefRowCount(3);
+
+        VBox workoutFields = new VBox(
+                10,
+                fieldLabel("Workout / activity name"), workoutName,
+                fieldLabel("Duration (minutes)"), workoutMinutes,
+                fieldLabel("How demanding was the activity?"), effort,
+                fieldLabel("Discomfort during activity (0 = none, 10 = highest)"), discomfort,
+                fieldLabel("Did you follow your assigned activity plan?"), planFollowed,
+                fieldLabel("Feedback or questions (optional)"), feedback
         );
+        workoutFields.setStyle("-fx-background-color: #F0F5FC;"
+                + "-fx-background-radius: 12;"
+                + "-fx-padding: 18;");
+        workoutFields.setVisible(false);
+        workoutFields.setManaged(false);
 
+        // Pedro's meal tracking: meal type, name, macronutrients and optional photo.
+        ComboBox<String> mealType = new ComboBox<>();
+        mealType.getItems().addAll("Breakfast", "Lunch", "Dinner", "Snack");
+        mealType.setPromptText("Select meal type");
+        mealType.setMaxWidth(Double.MAX_VALUE);
 
-        page.setTop(
-                header(
-                        "New Recovery Entry",
-                        false
-                )
+        TextField mealName = new TextField();
+        mealName.setPromptText("Example: Chicken and rice");
+        TextField protein = new TextField();
+        protein.setPromptText("Protein in grams (e.g. 25)");
+        TextField carbs = new TextField();
+        carbs.setPromptText("Carbs in grams (e.g. 40)");
+        TextField fat = new TextField();
+        fat.setPromptText("Fat in grams (e.g. 10)");
+
+        VBox mealFields = new VBox(10,
+                fieldLabel("Meal type"), mealType,
+                fieldLabel("Meal name"), mealName,
+                fieldLabel("Protein (g)"), protein,
+                fieldLabel("Carbohydrates (g)"), carbs,
+                fieldLabel("Fat (g)"), fat
         );
+        mealFields.setStyle("-fx-background-color: #F0F5FC;"
+                + "-fx-background-radius: 12; -fx-padding: 18;");
+        mealFields.setVisible(false);
+        mealFields.setManaged(false);
 
-
-        VBox form =
-                new VBox(17);
-
-        form.setPadding(
-                new Insets(30)
-        );
-
-
-        DatePicker date =
-                new DatePicker(
-                        selectedDate
-                );
-
-        date.setMaxWidth(
-                Double.MAX_VALUE
-        );
-
-
-        ComboBox<String> type =
-                new ComboBox<>();
-
-
-        type.getItems().addAll(
-                "Recovery Note",
-                "Recovery Photo",
-                "Activity Update"
-        );
-
-
-        type.setPromptText(
-                "Select entry type"
-        );
-
-        type.setMaxWidth(
-                Double.MAX_VALUE
-        );
-
-
-        TextArea note =
-                new TextArea();
-
-
-        note.setPromptText(
-                "Describe your recovery progress..."
-        );
-
-
+        Label noteLabel = fieldLabel("Recovery Note");
+        TextArea note = new TextArea();
+        note.setPromptText("Describe your recovery progress...");
         note.setWrapText(true);
-
         note.setPrefHeight(170);
 
+        // Show workout questions when Activity Update is selected.
+        type.valueProperty().addListener((observable, previous, selected) -> {
+            boolean activitySelected = "Activity Update".equals(selected);
+            workoutFields.setVisible(activitySelected);
+            workoutFields.setManaged(activitySelected);
+            boolean mealSelected = "Meal Entry".equals(selected);
+            mealFields.setVisible(mealSelected);
+            mealFields.setManaged(mealSelected);
+            noteLabel.setText(activitySelected
+                    ? "If any, what improvements can I make for next time?"
+                    : mealSelected ? "Meal notes (optional)" : "Recovery Note");
+            note.setPromptText(activitySelected
+                    ? "Anything else you would like to add?"
+                    : mealSelected ? "Add details about your meal (optional)..."
+                    : "Describe your recovery progress...");
+        });
 
-        Label photoName =
-                new Label(
-                        "No photo selected"
-                );
+        Label photoName = new Label("No photo selected");
+        photoName.setStyle("-fx-text-fill: #777777;");
+        final String[] photoPath = {null};
 
-
-        photoName.setStyle(
-                "-fx-text-fill: #777777;"
-        );
-
-
-        final String[] photoPath = {
-                null
-        };
-
-
-        Button addPhoto =
-                button(
-                        "📷 Add Photo",
-                        PALE,
-                        BLUE
-                );
-
-
-        addPhoto.setMaxWidth(
-                Double.MAX_VALUE
-        );
-
-
-        addPhoto.setOnAction(e -> {
-
-            FileChooser chooser =
-                    new FileChooser();
-
-
-            chooser.setTitle(
-                    "Select Recovery Photo"
-            );
-
-
-            chooser.getExtensionFilters().add(
-                    new FileChooser.ExtensionFilter(
-                            "Images",
-                            "*.png",
-                            "*.jpg",
-                            "*.jpeg",
-                            "*.gif"
-                    )
-            );
-
-
-            File file =
-                    chooser.showOpenDialog(
-                            stage
-                    );
-
-
+        Button addPhoto = button("📷 Add Photo", PALE, BLUE);
+        addPhoto.setMaxWidth(Double.MAX_VALUE);
+        addPhoto.setOnAction(event -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Select Recovery Photo");
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                    "Images", "*.png", "*.jpg", "*.jpeg", "*.gif"));
+            File file = chooser.showOpenDialog(stage);
             if (file != null) {
+                Image image = new Image(file.toURI().toString(), false);
+                if (image.isError()) {
+                    alert("Photo Error", "This image could not be opened.");
+                    return;
+                }
+                photoPath[0] = file.getAbsolutePath();
+                photoName.setText(file.getName());
+            }
+        });
 
-                Image test =
-                        new Image(
-                                file.toURI()
-                                        .toString(),
-                                false
-                        );
+        Button save = button("Save Recovery Entry", BLUE, "white");
+        save.setMaxWidth(Double.MAX_VALUE);
+        save.setPrefHeight(48);
+        save.setOnAction(event -> {
+            if (type.getValue() == null || date.getValue() == null) {
+                alert("Missing Information", "Select an entry type and date.");
+                return;
+            }
 
-
-                if (test.isError()) {
-
-                    alert(
-                            "Photo Error",
-                            "This image could not be opened."
-                    );
-
+            String text = note.getText().trim();
+            if ("Activity Update".equals(type.getValue())) {
+                if (workoutName.getText().trim().isEmpty()) {
+                    alert("Missing Workout", "Enter the workout or activity name.");
+                    workoutName.requestFocus();
                     return;
                 }
 
+                int minutes;
+                try {
+                    minutes = Integer.parseInt(workoutMinutes.getText().trim());
+                    if (minutes <= 0) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException exception) {
+                    alert("Invalid Duration", "Enter a positive whole number of minutes.");
+                    workoutMinutes.requestFocus();
+                    return;
+                }
 
-                photoPath[0] =
-                        file.getAbsolutePath();
+                if (effort.getValue() == null
+                        || discomfort.getValue() == null
+                        || planFollowed.getValue() == null) {
+                    alert("Missing Answers", "Answer the effort, discomfort, "
+                            + "and activity plan questions.");
+                    return;
+                }
 
+                StringBuilder workoutSummary = new StringBuilder();
+                workoutSummary.append("Workout: ")
+                        .append(workoutName.getText().trim())
+                        .append("\nDuration: ").append(minutes).append(" minutes")
+                        .append("\nEffort: ").append(effort.getValue())
+                        .append("\nDiscomfort: ").append(discomfort.getValue())
+                        .append("/10")
+                        .append("\nFollowed assigned plan: ").append(planFollowed.getValue());
 
-                photoName.setText(
-                        file.getName()
-                );
+                if (!feedback.getText().trim().isEmpty()) {
+                    workoutSummary.append("\nFeedback: ")
+                            .append(feedback.getText().trim());
+                }
+                if (!text.isEmpty()) {
+                    workoutSummary.append("\nAdditional note: ").append(text);
+                }
+                text = workoutSummary.toString();
             }
-        });
 
+            if ("Meal Entry".equals(type.getValue())) {
+                if (mealType.getValue() == null || mealName.getText().trim().isEmpty()) {
+                    alert("Missing Meal Information", "Select a meal type and enter a meal name.");
+                    return;
+                }
+                String[] macroNames = {"Protein", "Carbohydrates", "Fat"};
+                TextField[] macroFields = {protein, carbs, fat};
+                double[] macros = new double[3];
+                for (int i = 0; i < macroFields.length; i++) {
+                    try {
+                        macros[i] = Double.parseDouble(macroFields[i].getText().trim());
+                        if (!Double.isFinite(macros[i]) || macros[i] < 0) {
+                            throw new NumberFormatException();
+                        }
+                    } catch (NumberFormatException exception) {
+                        alert("Invalid " + macroNames[i],
+                                "Enter a non-negative number of grams for " + macroNames[i] + ".");
+                        macroFields[i].requestFocus();
+                        return;
+                    }
+                }
+                StringBuilder mealSummary = new StringBuilder();
+                mealSummary.append("Meal type: ").append(mealType.getValue())
+                        .append("\nMeal: ").append(mealName.getText().trim())
+                        .append("\nProtein: ").append(macros[0]).append(" g")
+                        .append("\nCarbohydrates: ").append(macros[1]).append(" g")
+                        .append("\nFat: ").append(macros[2]).append(" g");
+                if (!text.isEmpty()) {
+                    mealSummary.append("\nAdditional note: ").append(text);
+                }
+                text = mealSummary.toString();
+            }
 
-        Button save =
-                button(
-                        "Save Recovery Entry",
-                        BLUE,
-                        "white"
-                );
-
-
-        save.setMaxWidth(
-                Double.MAX_VALUE
-        );
-
-        save.setPrefHeight(48);
-
-
-        save.setOnAction(e -> {
-
-            if (type.getValue() == null ||
-                    date.getValue() == null) {
-
-                alert(
-                        "Missing Information",
-                        "Select an entry type and date."
-                );
-
+            if (text.isEmpty() && photoPath[0] == null) {
+                alert("Missing Information", "Enter a note or add a photo.");
                 return;
             }
 
-
-            String text =
-                    note.getText()
-                            .trim();
-
-
-            if (text.isEmpty() &&
-                    photoPath[0] == null) {
-
-                alert(
-                        "Missing Information",
-                        "Enter a note or add a photo."
-                );
-
-                return;
-            }
-
-
-            entries.add(
-                    new RecoveryEntry(
-                            type.getValue(),
-                            text,
-                            photoPath[0],
-                            date.getValue()
-                    )
-            );
-
-
-            selectedDate =
-                    date.getValue();
-
+            entries.add(new RecoveryEntry(
+                    type.getValue(), text, photoPath[0], date.getValue()));
+            selectedDate = date.getValue();
             listMode = false;
-
             showHome();
         });
 
-
         form.getChildren().addAll(
-
-                fieldLabel(
-                        "Entry Date"
-                ),
-                date,
-
-                fieldLabel(
-                        "Entry Type"
-                ),
-                type,
-
-                fieldLabel(
-                        "Recovery Note"
-                ),
-                note,
-
-                addPhoto,
-                photoName,
-                save
+                fieldLabel("Entry Date"), date,
+                fieldLabel("Entry Type"), type,
+                workoutFields, mealFields, noteLabel, note,
+                addPhoto, photoName, save
         );
 
-
-        ScrollPane scroll =
-                new ScrollPane(form);
-
+        ScrollPane scroll = new ScrollPane(form);
         scroll.setFitToWidth(true);
-
         page.setCenter(scroll);
-
         display(page);
     }
 
