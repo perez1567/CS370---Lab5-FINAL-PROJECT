@@ -17,11 +17,14 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.File;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class HelloApplication extends Application {
 
@@ -40,7 +43,6 @@ public class HelloApplication extends Application {
     private LocalDate selectedDate = LocalDate.now();
     private boolean providerMode = false;
     private String loggedInName;
-    private String loggedInRole;
     private boolean listMode = false;
     private boolean unreadReminder = false;
 
@@ -76,6 +78,7 @@ public class HelloApplication extends Application {
         String instructions;
         LocalDate date;
         boolean completed;
+        LocalDate completedDate;
 
         AdvisedActivity(String title, String instructions,
                         LocalDate date) {
@@ -84,13 +87,77 @@ public class HelloApplication extends Application {
             this.instructions = instructions;
             this.date = date;
             this.completed = false;
+            this.completedDate = null;
+        }
+    }
+
+
+    //Tracks consecutive days of recovery logging and completed activities.
+    private static class Streak {
+
+        int recoveryDays;
+        int activityDays;
+
+        Streak(List<RecoveryEntry> entries, List<AdvisedActivity> activities) {
+            recoveryDays = countConsecutiveDays(getRecoveryDates(entries));
+            Set<LocalDate> activityDates = getCompletedActivityDates(activities);
+
+            // Count activity updates recorded by patients.
+            for (RecoveryEntry entry : entries) {
+                if ("Activity Update".equals(entry.type)) {
+                    activityDates.add(entry.date);
+                }
+            }
+
+            activityDays = countConsecutiveDays(activityDates);
+        }
+
+        private static Set<LocalDate> getRecoveryDates(List<RecoveryEntry> entries) {
+            Set<LocalDate> dates = new HashSet<>();
+            for (RecoveryEntry entry : entries) {
+                dates.add(entry.date);
+            }
+            return dates;
+        }
+
+        private static Set<LocalDate> getCompletedActivityDates(
+                List<AdvisedActivity> activities) {
+            Set<LocalDate> dates = new HashSet<>();
+            for (AdvisedActivity activity : activities) {
+                if (activity.completed && activity.completedDate != null) {
+                    dates.add(activity.completedDate);
+                }
+            }
+            return dates;
+        }
+
+        private static int countConsecutiveDays(Set<LocalDate> dates) {
+            LocalDate day = LocalDate.now();
+
+            // Keep yesterday's streak active until the user records something today.
+            if (!dates.contains(day)) {
+                day = day.minusDays(1);
+            }
+
+            int count = 0;
+            while (dates.contains(day)) {
+                count++;
+                day = day.minusDays(1);
+            }
+            return count;
+        }
+
+        boolean hasStreak() {
+            return recoveryDays > 1 || activityDays > 1;
         }
     }
 
 
     //Open application with title
     @Override
-    public void start(Stage primaryStage) {
+    public void start(Stage primaryStage) throws SQLException {
+
+        AccountDatabase.initialize();
 
         stage = primaryStage;
 
@@ -104,8 +171,7 @@ public class HelloApplication extends Application {
     }
 
 
-    // Classroom prototype: accepts any non-empty username and password.
-    // No authentication or password storage is performed.
+    // Check the patient username and password using the account database.
     private void showLogin() {
         BorderPane page = new BorderPane();
         page.setStyle("-fx-background-color: white;");
@@ -116,7 +182,7 @@ public class HelloApplication extends Application {
         form.setMaxWidth(420);
 
         Label title = heading("Post-Surgery Recovery Log");
-        Label subtitle = new Label("Enter any username and password to continue");
+        Label subtitle = new Label("Enter your username and password to continue");
         TextField username = new TextField();
         username.setPromptText("Username");
         PasswordField password = new PasswordField();
@@ -134,8 +200,18 @@ public class HelloApplication extends Application {
                 error.setText("Please enter a username and password.");
                 return;
             }
+            // Check if the patient account is in the database
+            try {
+                if (!AccountDatabase.login(user, password.getText())) {
+                    error.setText("Invalid username or password.");
+                    password.clear();
+                    return;
+                }
+            } catch (SQLException exception) {
+                error.setText("Unable to access the account database.");
+                return;
+            }
             loggedInName = user;
-            loggedInRole = "Client";
             providerMode = false;
             password.clear();
             showHome();
@@ -149,7 +225,6 @@ public class HelloApplication extends Application {
 
     private void logout() {
         loggedInName = null;
-        loggedInRole = null;
         providerMode = false;
         showLogin();
     }
@@ -516,10 +591,9 @@ public class HelloApplication extends Application {
         Label welcomeTitle = heading("Welcome, " + loggedInName + "!");
         Label currentDate = new Label("Today: " + LocalDate.now().format(
                 DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy")));
-        Label roleLabel = fieldLabel("Role: " + loggedInRole);
         Button logoutButton = button("Log Out", PALE, BLUE);
         logoutButton.setOnAction(e -> logout());
-        welcome.getChildren().addAll(welcomeTitle, currentDate, roleLabel, logoutButton);
+        welcome.getChildren().addAll(welcomeTitle, currentDate, logoutButton);
         content.getChildren().add(welcome);
 
         if (providerMode) {
@@ -555,6 +629,51 @@ public class HelloApplication extends Application {
         content.getChildren().add(
                 heading("My Recovery")
         );
+
+
+        //Show positive feedback when the patient records progress on consecutive days.
+        Streak streak = new Streak(entries, activities);
+        VBox streakCard = card();
+
+        streakCard.getChildren().add(heading("Your Recovery Progress"));
+
+        Label streakMessage;
+        if (streak.hasStreak()) {
+            StringBuilder message = new StringBuilder("Great job, ")
+                    .append(loggedInName).append("! ");
+            if (streak.recoveryDays > 1) {
+                message.append("You updated your recovery log ")
+                        .append(streak.recoveryDays)
+                        .append(" days in a row. ");
+            }
+            if (streak.activityDays > 1) {
+                message.append("You recorded or completed activities ")
+                        .append(streak.activityDays)
+                        .append(" days in a row. ");
+            }
+            message.append("Keep up the great work!");
+            streakMessage = new Label(message.toString());
+            streakMessage.setStyle(
+                    "-fx-font-size: 15px; -fx-font-weight: bold; " +
+                            "-fx-text-fill: #24864A;"
+            );
+        } else {
+            streakMessage = new Label(
+                    "Every update counts! Keep recording your recovery progress. " +
+                            "Your streak will appear here as you build consistency."
+            );
+        }
+
+        streakMessage.setWrapText(true);
+
+        Label recoveryStreak = new Label(
+                "Recovery Log Streak: " + streak.recoveryDays + " days");
+
+        Label activityStreak = new Label(
+                "Activity Streak: " + streak.activityDays + " days");
+        streakCard.getChildren().addAll(
+                streakMessage, recoveryStreak, activityStreak);
+        content.getChildren().add(streakCard);
 
 
         HBox toggles =
@@ -1288,6 +1407,8 @@ public class HelloApplication extends Application {
 
                 a.completed =
                         !a.completed;
+
+                a.completedDate = a.completed ? LocalDate.now() : null;
 
                 showHome();
             });
