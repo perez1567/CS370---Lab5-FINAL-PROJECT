@@ -1,20 +1,5 @@
 package com.example.postsurgeryrecoverylog;
 
-import javafx.animation.FadeTransition;
-import javafx.animation.ScaleTransition;
-import javafx.animation.TranslateTransition;
-import javafx.application.Application;
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.layout.*;
-import javafx.stage.FileChooser;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
-import javafx.util.Duration;
 
 import java.io.File;
 import java.sql.SQLException;
@@ -22,1813 +7,2423 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
+
+import javafx.animation.ScaleTransition;
+import javafx.animation.TranslateTransition;
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+
 
 public class HelloApplication extends Application {
 
-    private Stage stage;
-
-    //Create colors for background
-    private static final String BLUE = "#38588D";
-    private static final String SKY = "#2F8AD8";
-    private static final String PALE = "#E8EFF8";
-    private static final String BG = "#F5F6FA";
-
-    private final List<RecoveryEntry> entries = new ArrayList<>();
-    private final List<AdvisedActivity> activities = new ArrayList<>();
-
-    //Create date system
-    private LocalDate selectedDate = LocalDate.now();
-    private boolean providerMode = false;
-    private String loggedInName;
-    private boolean listMode = false;
-    private boolean unreadReminder = false;
-
-    private static final DateTimeFormatter DATE_FORMAT =
-            DateTimeFormatter.ofPattern("MMM d, yyyy");
-
-
-    //Define class recovery entry, will allow clients to upload note/photo along with
-    //date assosiated
-    private static class RecoveryEntry {
-
-        String type;
-        String note;
-        String photoPath;
-        LocalDate date;
-
-        RecoveryEntry(String type, String note,
-                      String photoPath, LocalDate date) {
-
-            this.type = type;
-            this.note = note;
-            this.photoPath = photoPath;
-            this.date = date;
-        }
-    }
-
-
-    //Define class advised activity, will allow healthcare providers to create an event
-    //with a date and title
-    private static class AdvisedActivity {
-
-        String title;
-        String instructions;
-        LocalDate date;
-        boolean completed;
-        LocalDate completedDate;
-
-        AdvisedActivity(String title, String instructions,
-                        LocalDate date) {
-
-            this.title = title;
-            this.instructions = instructions;
-            this.date = date;
-            this.completed = false;
-            this.completedDate = null;
-        }
-    }
-
-
-    //Tracks consecutive days of recovery logging and completed activities.
-    private static class Streak {
-
-        int recoveryDays;
-        int activityDays;
-
-        Streak(List<RecoveryEntry> entries, List<AdvisedActivity> activities) {
-            recoveryDays = countConsecutiveDays(getRecoveryDates(entries));
-            Set<LocalDate> activityDates = getCompletedActivityDates(activities);
-
-            // Count activity updates recorded by patients.
-            for (RecoveryEntry entry : entries) {
-                if ("Activity Update".equals(entry.type)) {
-                    activityDates.add(entry.date);
-                }
-            }
-
-            activityDays = countConsecutiveDays(activityDates);
-        }
-
-        private static Set<LocalDate> getRecoveryDates(List<RecoveryEntry> entries) {
-            Set<LocalDate> dates = new HashSet<>();
-            for (RecoveryEntry entry : entries) {
-                dates.add(entry.date);
-            }
-            return dates;
-        }
-
-        private static Set<LocalDate> getCompletedActivityDates(
-                List<AdvisedActivity> activities) {
-            Set<LocalDate> dates = new HashSet<>();
-            for (AdvisedActivity activity : activities) {
-                if (activity.completed && activity.completedDate != null) {
-                    dates.add(activity.completedDate);
-                }
-            }
-            return dates;
-        }
-
-        private static int countConsecutiveDays(Set<LocalDate> dates) {
-            LocalDate day = LocalDate.now();
-
-            // Keep yesterday's streak active until the user records something today.
-            if (!dates.contains(day)) {
-                day = day.minusDays(1);
-            }
-
-            int count = 0;
-            while (dates.contains(day)) {
-                count++;
-                day = day.minusDays(1);
-            }
-            return count;
-        }
-
-        boolean hasStreak() {
-            return recoveryDays > 1 || activityDays > 1;
-        }
-    }
-
-
-    //Open application with title
-    @Override
-    public void start(Stage primaryStage) throws SQLException {
-
-        AccountDatabase.initialize();
-
-        stage = primaryStage;
-
-        stage.setTitle("Post-Surgery Recovery Log");
-        stage.setMinWidth(580);
-        stage.setMinHeight(720);
-
-        showLogin();
-
-        stage.show();
-    }
-
-
-    // Check the patient username and password using the account database.
-    private void showLogin() {
-        BorderPane page = new BorderPane();
-        page.setStyle("-fx-background-color: white;");
-
-        VBox form = new VBox(15);
-        form.setAlignment(Pos.CENTER);
-        form.setPadding(new Insets(35));
-        form.setMaxWidth(420);
-
-        Label title = heading("Post-Surgery Recovery Log");
-        Label subtitle = new Label("Enter your username and password to continue");
-        TextField username = new TextField();
-        username.setPromptText("Username");
-        PasswordField password = new PasswordField();
-        password.setPromptText("Password");
-        Label error = new Label();
-        error.setStyle("-fx-text-fill: #B42318;");
-        error.setWrapText(true);
-
-        Button signIn = button("Log In", BLUE, "white");
-        signIn.setMaxWidth(Double.MAX_VALUE);
-        signIn.setDefaultButton(true);
-        signIn.setOnAction(e -> {
-            String user = username.getText().trim();
-            if (user.isEmpty() || password.getText().isEmpty()) {
-                error.setText("Please enter a username and password.");
-                return;
-            }
-            // Check if the patient account is in the database
-            try {
-                if (!AccountDatabase.login(user, password.getText())) {
-                    error.setText("Invalid username or password.");
-                    password.clear();
-                    return;
-                }
-            } catch (SQLException exception) {
-                error.setText("Unable to access the account database.");
-                return;
-            }
-            loggedInName = user;
-            providerMode = false;
-            password.clear();
-            showHome();
-        });
-
-        form.getChildren().addAll(title, subtitle, fieldLabel("Username"),
-                username, fieldLabel("Password"), password, signIn, error);
-        page.setCenter(form);
-        display(page);
-    }
-
-    private void logout() {
-        loggedInName = null;
-        providerMode = false;
-        showLogin();
-    }
 
-    //UI helpers
-    //includes features for the following: button, vertical box, header, label,
-    //notification display...
-    //...add, more info, alert
-    private Button button(String text, String background,
-                          String foreground) {
+   private Stage stage;
 
-        Button b = new Button(text);
 
-        b.setStyle(
-                "-fx-background-color: " + background + ";" +
-                        "-fx-text-fill: " + foreground + ";" +
-                        "-fx-background-radius: 9;" +
-                        "-fx-font-size: 14px;" +
-                        "-fx-cursor: hand;"
-        );
+   //Create colors for background
+   private static final String BLUE = "#38588D";
+   private static final String SKY = "#2F8AD8";
+   private static final String PALE = "#E8EFF8";
+   private static final String BG = "#F5F6FA";
 
-        b.setPadding(new Insets(11, 16, 11, 16));
 
-        b.setOnMouseEntered(e -> {
+   private final List<RecoveryEntry> entries = new ArrayList<>();
+   private final List<AdvisedActivity> activities = new ArrayList<>();
 
-            ScaleTransition t =
-                    new ScaleTransition(Duration.millis(120), b);
 
-            t.setToX(1.03);
-            t.setToY(1.03);
-            t.play();
-        });
+   //Create date system
+   private LocalDate selectedDate = LocalDate.now();
+   private boolean providerMode = false;
+   private String loggedInName;
+   private boolean listMode = false;
+   private boolean unreadReminder = false;
 
-        b.setOnMouseExited(e -> {
 
-            ScaleTransition t =
-                    new ScaleTransition(Duration.millis(120), b);
+   private static final DateTimeFormatter DATE_FORMAT =
+           DateTimeFormatter.ofPattern("MMM d, yyyy");
 
-            t.setToX(1);
-            t.setToY(1);
-            t.play();
-        });
 
-        return b;
-    }
 
 
-    private VBox card() {
+   //Define class recovery entry, will allow clients to upload note/photo along with
+   //date assosiated
+   private static class RecoveryEntry {
 
-        VBox v = new VBox(10);
 
-        v.setPadding(new Insets(17));
-        v.setMaxWidth(Double.MAX_VALUE);
+       String type;
+       String note;
+       String photoPath;
+       LocalDate date;
+       Integer painLevel;
+       Integer stressLevel;
 
-        v.setStyle(
-                "-fx-background-color: " + BG + ";" +
-                        "-fx-background-radius: 12;" +
-                        "-fx-border-color: #E1E6EE;" +
-                        "-fx-border-radius: 12;"
-        );
 
-        return v;
-    }
+       RecoveryEntry(String type, String note,
+                     String photoPath, LocalDate date) {
 
 
-    private Label heading(String text) {
+           this.type = type;
+           this.note = note;
+           this.photoPath = photoPath;
+           this.date = date;
+       }
+   }
 
-        Label l = new Label(text);
 
-        l.setStyle(
-                "-fx-font-size: 21px;" +
-                        "-fx-font-weight: bold;" +
-                        "-fx-text-fill: " + BLUE + ";"
-        );
 
-        return l;
-    }
 
+   //Define class advised activity, will allow healthcare providers to create an event
+   //with a date and title
+   private static class AdvisedActivity {
 
-    private Label section(String text) {
 
-        Label l = new Label(text);
+       String title;
+       String instructions;
+       LocalDate date;
+       boolean completed;
+       LocalDate completedDate;
 
-        l.setMaxWidth(Double.MAX_VALUE);
-        l.setPadding(new Insets(12));
 
-        l.setStyle(
-                "-fx-background-color: #F0F0F5;" +
-                        "-fx-text-fill: #666666;" +
-                        "-fx-font-size: 14px;" +
-                        "-fx-font-weight: bold;"
-        );
+       AdvisedActivity(String title, String instructions,
+                       LocalDate date) {
 
-        return l;
-    }
 
+           this.title = title;
+           this.instructions = instructions;
+           this.date = date;
+           this.completed = false;
+           this.completedDate = null;
+       }
+   }
 
-    private Label fieldLabel(String text) {
 
-        Label l = new Label(text);
 
-        l.setStyle(
-                "-fx-font-size: 14px;" +
-                        "-fx-font-weight: bold;"
-        );
 
-        return l;
-    }
+   //Tracks consecutive days of recovery logging and completed activities.
+   private static class Streak {
 
 
-    private void alert(String title, String message) {
+       int recoveryDays;
+       int activityDays;
 
-        Alert a = new Alert(Alert.AlertType.WARNING);
 
-        a.setTitle(title);
-        a.setHeaderText(null);
-        a.setContentText(message);
+       Streak(List<RecoveryEntry> entries, List<AdvisedActivity> activities) {
+           recoveryDays = countConsecutiveDays(getRecoveryDates(entries));
+           Set<LocalDate> activityDates = getCompletedActivityDates(activities);
 
-        a.showAndWait();
-    }
 
+           // Count activity updates recorded by patients.
+           for (RecoveryEntry entry : entries) {
+               if ("Activity Update".equals(entry.type)) {
+                   activityDates.add(entry.date);
+               }
+           }
 
-    private void info(String title, String message) {
 
-        Alert a = new Alert(Alert.AlertType.INFORMATION);
+           activityDays = countConsecutiveDays(activityDates);
+       }
 
-        a.setTitle(title);
-        a.setHeaderText(null);
-        a.setContentText(message);
 
-        a.showAndWait();
-    }
+       private static Set<LocalDate> getRecoveryDates(List<RecoveryEntry> entries) {
+           Set<LocalDate> dates = new HashSet<>();
+           for (RecoveryEntry entry : entries) {
+               dates.add(entry.date);
+           }
+           return dates;
+       }
 
 
-    private void display(BorderPane page) {
-        if (stage.getScene() == null) {
-            stage.setScene(new Scene(page, 580, 720));
-        } else {
-            stage.getScene().setRoot(page);
-        }
-    }
+       private static Set<LocalDate> getCompletedActivityDates(
+               List<AdvisedActivity> activities) {
+           Set<LocalDate> dates = new HashSet<>();
+           for (AdvisedActivity activity : activities) {
+               if (activity.completed && activity.completedDate != null) {
+                   dates.add(activity.completedDate);
+               }
+           }
+           return dates;
+       }
 
 
-    private BorderPane header(String title, boolean home) {
+       private static int countConsecutiveDays(Set<LocalDate> dates) {
+           LocalDate day = LocalDate.now();
 
-        BorderPane bar = new BorderPane();
 
-        bar.setPadding(new Insets(14, 18, 14, 18));
+           // Keep yesterday's streak active until the user records something today.
+           if (!dates.contains(day)) {
+               day = day.minusDays(1);
+           }
 
-        bar.setStyle(
-                "-fx-background-color: " + BLUE + ";"
-        );
 
+           int count = 0;
+           while (dates.contains(day)) {
+               count++;
+               day = day.minusDays(1);
+           }
+           return count;
+       }
 
-        if (!home) {
 
-            Button back =
-                    button("‹ Back", BLUE, "white");
+       boolean hasStreak() {
+           return recoveryDays > 1 || activityDays > 1;
+       }
+   }
 
-            back.setOnAction(e -> showHome());
 
 
-            Label label = new Label(title);
 
-            label.setStyle(
-                    "-fx-text-fill: white;" +
-                            "-fx-font-size: 18px;" +
-                            "-fx-font-weight: bold;"
-            );
+   //Open application with title
+   @Override
+   public void start(Stage primaryStage) throws SQLException {
 
 
-            bar.setLeft(back);
-            bar.setCenter(label);
+       AccountDatabase.initialize();
 
-            return bar;
-        }
 
+       stage = primaryStage;
 
-        Label appName =
-                new Label("Recovery Log");
 
-        appName.setStyle(
-                "-fx-text-fill: white;" +
-                        "-fx-font-size: 19px;" +
-                        "-fx-font-weight: bold;"
-        );
+       stage.setTitle("Post-Surgery Recovery Log");
+       stage.setMinWidth(580);
+       stage.setMinHeight(720);
 
-        bar.setLeft(appName);
 
+       showLogin();
 
-        Label bell =
-                new Label("🔔");
 
-        bell.setStyle(
-                "-fx-font-size: 25px; -fx-cursor: hand;"
-        );
+       stage.show();
+   }
 
 
-        Label badge =
-                new Label("1");
 
-        badge.setAlignment(Pos.CENTER);
-        badge.setPrefSize(19, 19);
-        badge.setMaxSize(19, 19);
 
-        badge.setStyle(
-                "-fx-background-color: red;" +
-                        "-fx-background-radius: 20;" +
-                        "-fx-text-fill: white;" +
-                        "-fx-font-size: 11px;"
-        );
+   // Check the patient username and password using the account database.
+   private void showLogin() {
+       BorderPane page = new BorderPane();
+       page.setStyle("-fx-background-color: white;");
 
-        badge.setVisible(unreadReminder);
 
+       VBox form = new VBox(15);
+       form.setAlignment(Pos.CENTER);
+       form.setPadding(new Insets(35));
+       form.setMaxWidth(420);
 
-        StackPane notification =
-                new StackPane(bell, badge);
 
-        StackPane.setAlignment(
-                badge,
-                Pos.TOP_RIGHT
-        );
+       Label title = heading("Post-Surgery Recovery Log");
+       Label subtitle = new Label("Enter your username and password to continue");
+       TextField username = new TextField();
+       username.setPromptText("Username");
+       PasswordField password = new PasswordField();
+       password.setPromptText("Password");
+       Label error = new Label();
+       error.setStyle("-fx-text-fill: #B42318;");
+       error.setWrapText(true);
 
-        notification.setPrefSize(44, 44);
 
-        notification.setStyle(
-                "-fx-cursor: hand;"
-        );
+       Button signIn = button("Log In", BLUE, "white");
+       signIn.setMaxWidth(Double.MAX_VALUE);
+       signIn.setDefaultButton(true);
+       signIn.setOnAction(e -> {
+           String user = username.getText().trim();
+           if (user.isEmpty() || password.getText().isEmpty()) {
+               error.setText("Please enter a username and password.");
+               return;
+           }
+           // Check if the patient account is in the database
+           try {
+               if (!AccountDatabase.login(user, password.getText())) {
+                   error.setText("Invalid username or password.");
+                   password.clear();
+                   return;
+               }
+           } catch (SQLException exception) {
+               error.setText("Unable to access the account database.");
+               return;
+           }
+           loggedInName = user;
+           providerMode = false;
+           password.clear();
+           showHome();
+       });
 
 
-        notification.setOnMouseClicked(e -> {
+       form.getChildren().addAll(title, subtitle, fieldLabel("Username"),
+               username, fieldLabel("Password"), password, signIn, error);
+       page.setCenter(form);
+       display(page);
+   }
 
-            TranslateTransition shake =
-                    new TranslateTransition(
-                            Duration.millis(65),
-                            bell
-                    );
 
-            shake.setFromX(-5);
-            shake.setToX(5);
-            shake.setCycleCount(8);
-            shake.setAutoReverse(true);
-            shake.play();
+   private void logout() {
+       loggedInName = null;
+       providerMode = false;
+       showLogin();
+   }
 
 
-            if (activities.isEmpty()) {
+   //UI helpers
+   //includes features for the following: button, vertical box, header, label,
+   //notification display...
+   //...add, more info, alert
+   private Button button(String text, String background,
+                         String foreground) {
 
-                info(
-                        "Notifications",
-                        "No advised activities yet."
-                );
 
-            } else {
+       Button b = new Button(text);
 
-                StringBuilder message =
-                        new StringBuilder();
 
+       b.setStyle(
+               "-fx-background-color: " + background + ";" +
+                       "-fx-text-fill: " + foreground + ";" +
+                       "-fx-background-radius: 9;" +
+                       "-fx-font-size: 14px;" +
+                       "-fx-cursor: hand;"
+       );
 
-                for (AdvisedActivity a : activities) {
 
-                    if (!a.completed) {
+       b.setPadding(new Insets(11, 16, 11, 16));
 
-                        message.append("• ")
-                                .append(a.title)
-                                .append(" — ")
-                                .append(
-                                        a.date.format(
-                                                DATE_FORMAT
-                                        )
-                                )
-                                .append("\n");
-                    }
-                }
 
+       b.setOnMouseEntered(e -> {
 
-                info(
-                        "Advised Activities",
-                        message.isEmpty()
-                                ? "All activities are completed."
-                                : message.toString()
-                );
-            }
 
+           ScaleTransition t =
+                   new ScaleTransition(Duration.millis(120), b);
 
-            unreadReminder = false;
-            badge.setVisible(false);
-        });
 
+           t.setToX(1.03);
+           t.setToY(1.03);
+           t.play();
+       });
 
-        Button add =
-                button("+", BLUE, "white");
 
-        add.setStyle(
-                "-fx-background-color: transparent;" +
-                        "-fx-text-fill: white;" +
-                        "-fx-font-size: 29px;" +
-                        "-fx-cursor: hand;"
-        );
+       b.setOnMouseExited(e -> {
 
 
-        add.setOnAction(e -> {
+           ScaleTransition t =
+                   new ScaleTransition(Duration.millis(120), b);
 
-            if (providerMode) {
 
-                showAddActivity();
+           t.setToX(1);
+           t.setToY(1);
+           t.play();
+       });
 
-            } else {
 
-                showAddEntry();
-            }
-        });
+       return b;
+   }
 
 
-        HBox actions =
-                new HBox(
-                        10,
-                        notification,
-                        add
-                );
 
-        actions.setAlignment(
-                Pos.CENTER_RIGHT
-        );
 
-        bar.setRight(actions);
+   private VBox card() {
 
-        return bar;
-    }
 
+       VBox v = new VBox(10);
 
-    //General homepage
-    //Will display dashboard, select client(patient or provider)
-    private void showHome() {
 
-        BorderPane page =
-                new BorderPane();
+       v.setPadding(new Insets(17));
+       v.setMaxWidth(Double.MAX_VALUE);
 
-        page.setStyle(
-                "-fx-background-color: white;"
-        );
 
-        page.setTop(
-                header(
-                        "Recovery Log",
-                        true
-                )
-        );
+       v.setStyle(
+               "-fx-background-color: " + BG + ";" +
+                       "-fx-background-radius: 12;" +
+                       "-fx-border-color: #E1E6EE;" +
+                       "-fx-border-radius: 12;"
+       );
 
 
-        VBox content =
-                new VBox(16);
+       return v;
+   }
 
-        content.setPadding(
-                new Insets(20)
-        );
 
 
-        if (loggedInName == null) {
-            showLogin();
-            return;
-        }
 
-        VBox welcome = card();
-        Label welcomeTitle = heading("Welcome, " + loggedInName + "!");
-        Label currentDate = new Label("Today: " + LocalDate.now().format(
-                DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy")));
-        Button logoutButton = button("Log Out", PALE, BLUE);
-        logoutButton.setOnAction(e -> logout());
-        welcome.getChildren().addAll(welcomeTitle, currentDate, logoutButton);
-        content.getChildren().add(welcome);
+   private Label heading(String text) {
 
-        if (providerMode) {
 
-            buildProviderDashboard(content);
+       Label l = new Label(text);
 
-        } else {
 
-            buildPatientDashboard(content);
-        }
+       l.setStyle(
+               "-fx-font-size: 21px;" +
+                       "-fx-font-weight: bold;" +
+                       "-fx-text-fill: " + BLUE + ";"
+       );
 
 
-        ScrollPane scroll =
-                new ScrollPane(content);
+       return l;
+   }
 
-        scroll.setFitToWidth(true);
 
-        scroll.setStyle(
-                "-fx-background: white;" +
-                        "-fx-background-color: white;"
-        );
 
 
-        page.setCenter(scroll);
+   private Label section(String text) {
 
-        display(page);
-    }
 
+       Label l = new Label(text);
 
-    //Homepage for PATIENT
-    private void buildPatientDashboard(VBox content) {
 
-        content.getChildren().add(
-                heading("My Recovery")
-        );
+       l.setMaxWidth(Double.MAX_VALUE);
+       l.setPadding(new Insets(12));
 
 
-        //Show positive feedback when the patient records progress on consecutive days.
-        Streak streak = new Streak(entries, activities);
-        VBox streakCard = card();
+       l.setStyle(
+               "-fx-background-color: #F0F0F5;" +
+                       "-fx-text-fill: #666666;" +
+                       "-fx-font-size: 14px;" +
+                       "-fx-font-weight: bold;"
+       );
 
-        streakCard.getChildren().add(heading("Your Recovery Progress"));
 
-        Label streakMessage;
-        if (streak.hasStreak()) {
-            StringBuilder message = new StringBuilder("Great job, ")
-                    .append(loggedInName).append("! ");
-            if (streak.recoveryDays > 1) {
-                message.append("You updated your recovery log ")
-                        .append(streak.recoveryDays)
-                        .append(" days in a row. ");
-            }
-            if (streak.activityDays > 1) {
-                message.append("You recorded or completed activities ")
-                        .append(streak.activityDays)
-                        .append(" days in a row. ");
-            }
-            message.append("Keep up the great work!");
-            streakMessage = new Label(message.toString());
-            streakMessage.setStyle(
-                    "-fx-font-size: 15px; -fx-font-weight: bold; " +
-                            "-fx-text-fill: #24864A;"
-            );
-        } else {
-            streakMessage = new Label(
-                    "Every update counts! Keep recording your recovery progress. " +
-                            "Your streak will appear here as you build consistency."
-            );
-        }
+       return l;
+   }
 
-        streakMessage.setWrapText(true);
 
-        Label recoveryStreak = new Label(
-                "Recovery Log Streak: " + streak.recoveryDays + " days");
 
-        Label activityStreak = new Label(
-                "Activity Streak: " + streak.activityDays + " days");
-        streakCard.getChildren().addAll(
-                streakMessage, recoveryStreak, activityStreak);
-        content.getChildren().add(streakCard);
 
+   private Label fieldLabel(String text) {
 
-        HBox toggles =
-                new HBox(10);
 
+       Label l = new Label(text);
 
-        Button calendar =
-                button(
-                        "Calendar",
-                        listMode ? PALE : BLUE,
-                        listMode ? BLUE : "white"
-                );
 
+       l.setStyle(
+               "-fx-font-size: 14px;" +
+                       "-fx-font-weight: bold;"
+       );
 
-        Button list =
-                button(
-                        "List",
-                        listMode ? BLUE : PALE,
-                        listMode ? "white" : BLUE
-                );
 
+       return l;
+   }
 
-        calendar.setOnAction(e -> {
 
-            listMode = false;
 
-            showHome();
-        });
 
+   private void alert(String title, String message) {
 
-        list.setOnAction(e -> {
 
-            listMode = true;
+       Alert a = new Alert(Alert.AlertType.WARNING);
 
-            showHome();
-        });
 
+       a.setTitle(title);
+       a.setHeaderText(null);
+       a.setContentText(message);
 
-        toggles.getChildren().addAll(
-                calendar,
-                list
-        );
 
-        content.getChildren().add(
-                toggles
-        );
+       a.showAndWait();
+   }
 
 
-        if (!listMode) {
 
-            content.getChildren().add(
-                    createCalendar()
-            );
-        }
 
+   private void info(String title, String message) {
 
-        content.getChildren().add(
-                section(
-                        "RECOVERY LOG"
-                )
-        );
 
+       Alert a = new Alert(Alert.AlertType.INFORMATION);
 
-        List<RecoveryEntry> visible =
-                new ArrayList<>();
 
+       a.setTitle(title);
+       a.setHeaderText(null);
+       a.setContentText(message);
 
-        for (RecoveryEntry entry : entries) {
 
-            if (listMode ||
-                    entry.date.equals(
-                            selectedDate
-                    )) {
+       a.showAndWait();
+   }
 
-                visible.add(entry);
-            }
-        }
 
 
-        visible.sort(
-                Comparator.comparing(
-                        (RecoveryEntry e) ->
-                                e.date
-                ).reversed()
-        );
 
+   private void display(BorderPane page) {
+       if (stage.getScene() == null) {
+           stage.setScene(new Scene(page, 580, 720));
+       } else {
+           stage.getScene().setRoot(page);
+       }
+   }
 
-        if (visible.isEmpty()) {
 
-            Label empty =
-                    new Label(
-                            "No recovery entries yet.\n" +
-                                    "Click + to add a note or photo."
-                    );
 
 
-            empty.setStyle(
-                    "-fx-text-fill: #777777;" +
-                            "-fx-font-size: 15px;"
-            );
+   private BorderPane header(String title, boolean home) {
 
 
-            content.getChildren().add(
-                    empty
-            );
+       BorderPane bar = new BorderPane();
 
-        } else {
 
-            for (RecoveryEntry entry :
-                    visible) {
+       bar.setPadding(new Insets(14, 18, 14, 18));
 
-                content.getChildren().add(
-                        entryCard(entry)
-                );
-            }
-        }
 
+       bar.setStyle(
+               "-fx-background-color: " + BLUE + ";"
+       );
 
-        content.getChildren().add(
-                section(
-                        "ADVISED ACTIVITIES"
-                )
-        );
 
 
-        if (activities.isEmpty()) {
 
-            content.getChildren().add(
-                    new Label(
-                            "No activities assigned by the provider."
-                    )
-            );
+       if (!home) {
 
-        } else {
 
-            for (AdvisedActivity a :
-                    activities) {
+           Button back =
+                   button("‹ Back", BLUE, "white");
 
-                content.getChildren().add(
-                        activityCard(
-                                a,
-                                true
-                        )
-                );
-            }
-        }
-    }
 
+           back.setOnAction(e -> showHome());
 
-    //Homepage for PROVIDER
-    //This screen will display options to view calendar, view options to upload photo
-    //or note, or view adv acitivty
-    private void buildProviderDashboard(VBox content) {
 
-        content.getChildren().add(
-                heading(
-                        "Healthcare Provider Dashboard"
-                )
-        );
 
 
-        Label description =
-                new Label(
-                        "Review patient recovery notes, view photos, " +
-                                "and create advised activities."
-                );
+           Label label = new Label(title);
 
-        description.setWrapText(true);
 
-        description.setStyle(
-                "-fx-text-fill: #777777;"
-        );
+           label.setStyle(
+                   "-fx-text-fill: white;" +
+                           "-fx-font-size: 18px;" +
+                           "-fx-font-weight: bold;"
+           );
 
 
-        Button create =
-                button(
-                        "+ Create Advised Activity",
-                        BLUE,
-                        "white"
-                );
 
 
-        create.setOnAction(
-                e -> showAddActivity()
-        );
+           bar.setLeft(back);
+           bar.setCenter(label);
 
 
-        content.getChildren().addAll(
-                description,
-                create
-        );
+           return bar;
+       }
 
 
-        content.getChildren().add(
-                section(
-                        "PATIENT RECOVERY ENTRIES"
-                )
-        );
 
 
-        if (entries.isEmpty()) {
+       Label appName =
+               new Label("Recovery Log");
 
-            content.getChildren().add(
-                    new Label(
-                            "No patient entries have been added."
-                    )
-            );
 
-        } else {
+       appName.setStyle(
+               "-fx-text-fill: white;" +
+                       "-fx-font-size: 19px;" +
+                       "-fx-font-weight: bold;"
+       );
 
-            List<RecoveryEntry> sorted =
-                    new ArrayList<>(
-                            entries
-                    );
 
+       bar.setLeft(appName);
 
-            sorted.sort(
-                    Comparator.comparing(
-                            (RecoveryEntry e) ->
-                                    e.date
-                    ).reversed()
-            );
 
 
-            for (RecoveryEntry entry :
-                    sorted) {
 
-                content.getChildren().add(
-                        entryCard(entry)
-                );
-            }
-        }
+       Label bell =
+               new Label("🔔");
 
 
-        content.getChildren().add(
-                section(
-                        "PROVIDER ADVISED ACTIVITIES"
-                )
-        );
+       bell.setStyle(
+               "-fx-font-size: 25px; -fx-cursor: hand;"
+       );
 
 
-        if (activities.isEmpty()) {
 
-            content.getChildren().add(
-                    new Label(
-                            "No advised activities created yet."
-                    )
-            );
 
-        } else {
+       Label badge =
+               new Label("1");
 
-            for (AdvisedActivity a :
-                    activities) {
 
-                content.getChildren().add(
-                        activityCard(
-                                a,
-                                false
-                        )
-                );
-            }
-        }
-    }
+       badge.setAlignment(Pos.CENTER);
+       badge.setPrefSize(19, 19);
+       badge.setMaxSize(19, 19);
 
 
-    //Create calendar
-    //Will be able present weekly view -> List days of the week and dates
-    //Will be able to change the date
-    private VBox createCalendar() {
+       badge.setStyle(
+               "-fx-background-color: red;" +
+                       "-fx-background-radius: 20;" +
+                       "-fx-text-fill: white;" +
+                       "-fx-font-size: 11px;"
+       );
 
-        VBox box =
-                new VBox(15);
 
-        box.setAlignment(
-                Pos.CENTER
-        );
+       badge.setVisible(unreadReminder);
 
-        box.setPadding(
-                new Insets(15)
-        );
 
-        box.setStyle(
-                "-fx-background-color: " +
-                        BG + ";" +
-                        "-fx-background-radius: 12;"
-        );
 
 
-        HBox nav =
-                new HBox(22);
+       StackPane notification =
+               new StackPane(bell, badge);
 
-        nav.setAlignment(
-                Pos.CENTER
-        );
 
+       StackPane.setAlignment(
+               badge,
+               Pos.TOP_RIGHT
+       );
 
-        Button previous =
-                button(
-                        "‹",
-                        "white",
-                        BLUE
-                );
 
+       notification.setPrefSize(44, 44);
 
-        Button next =
-                button(
-                        "›",
-                        "white",
-                        BLUE
-                );
 
+       notification.setStyle(
+               "-fx-cursor: hand;"
+       );
 
-        Label month =
-                new Label(
-                        selectedDate.format(
-                                DateTimeFormatter.ofPattern(
-                                        "MMMM yyyy"
-                                )
-                        )
-                );
 
 
-        month.setStyle(
-                "-fx-font-size: 21px;" +
-                        "-fx-text-fill: " +
-                        BLUE + ";"
-        );
 
+       notification.setOnMouseClicked(e -> {
 
-        previous.setOnAction(e -> {
 
-            selectedDate =
-                    selectedDate.minusWeeks(1);
+           TranslateTransition shake =
+                   new TranslateTransition(
+                           Duration.millis(65),
+                           bell
+                   );
 
-            showHome();
-        });
 
+           shake.setFromX(-5);
+           shake.setToX(5);
+           shake.setCycleCount(8);
+           shake.setAutoReverse(true);
+           shake.play();
 
-        next.setOnAction(e -> {
 
-            selectedDate =
-                    selectedDate.plusWeeks(1);
 
-            showHome();
-        });
 
+           if (activities.isEmpty()) {
 
-        nav.getChildren().addAll(
-                previous,
-                month,
-                next
-        );
 
+               info(
+                       "Notifications",
+                       "No advised activities yet."
+               );
 
-        GridPane grid =
-                new GridPane();
 
-        grid.setAlignment(
-                Pos.CENTER
-        );
+           } else {
 
-        grid.setHgap(8);
-        grid.setVgap(8);
 
+               StringBuilder message =
+                       new StringBuilder();
 
-        String[] names = {
-                "Sun",
-                "Mon",
-                "Tue",
-                "Wed",
-                "Thu",
-                "Fri",
-                "Sat"
-        };
 
 
-        LocalDate sunday =
-                selectedDate.minusDays(
-                        selectedDate
-                                .getDayOfWeek()
-                                .getValue() % 7
-                );
 
+               for (AdvisedActivity a : activities) {
 
-        for (int i = 0;
-             i < 7;
-             i++) {
 
-            LocalDate date =
-                    sunday.plusDays(i);
+                   if (!a.completed) {
 
 
-            VBox day =
-                    new VBox(6);
+                       message.append("• ")
+                               .append(a.title)
+                               .append(" — ")
+                               .append(
+                                       a.date.format(
+                                               DATE_FORMAT
+                                       )
+                               )
+                               .append("\n");
+                   }
+               }
 
-            day.setAlignment(
-                    Pos.CENTER
-            );
 
-            day.setPrefWidth(55);
 
 
-            Label name =
-                    new Label(
-                            names[i]
-                    );
+               info(
+                       "Advised Activities",
+                       message.isEmpty()
+                               ? "All activities are completed."
+                               : message.toString()
+               );
+           }
 
-            name.setStyle(
-                    "-fx-text-fill: " +
-                            BLUE + ";"
-            );
 
 
-            Button dateButton =
-                    new Button(
-                            String.valueOf(
-                                    date.getDayOfMonth()
-                            )
-                    );
 
+           unreadReminder = false;
+           badge.setVisible(false);
+       });
 
-            dateButton.setPrefSize(
-                    42,
-                    42
-            );
 
 
-            boolean selected =
-                    date.equals(
-                            selectedDate
-                    );
 
+       HBox actions = new HBox(10);
+actions.setAlignment(Pos.CENTER_RIGHT);
+actions.getChildren().add(notification);
 
-            dateButton.setStyle(
-                    "-fx-background-color: " +
-                            (selected
-                                    ? SKY
-                                    : "white") + ";" +
 
-                            "-fx-text-fill: " +
-                            (selected
-                                    ? "white"
-                                    : "#333333") + ";" +
+bar.setRight(actions);
+       return bar;
+   }
 
-                            "-fx-background-radius: 50;" +
-                            "-fx-cursor: hand;"
-            );
 
 
-            dateButton.setOnAction(e -> {
 
-                selectedDate = date;
+   //General homepage
+   //Will display dashboard, select client(patient or provider)
+   private void showHome() {
 
-                showHome();
-            });
 
+       BorderPane page =
+               new BorderPane();
 
-            day.getChildren().addAll(
-                    name,
-                    dateButton
-            );
 
+       page.setStyle(
+               "-fx-background-color: white;"
+       );
 
-            grid.add(
-                    day,
-                    i,
-                    0
-            );
-        }
 
+       page.setTop(
+               header(
+                       "Recovery Log",
+                       true
+               )
+       );
 
-        box.getChildren().addAll(
-                nav,
-                grid
-        );
 
 
-        return box;
-    }
 
+       VBox content =
+               new VBox(16);
 
-    //Recovery card
-    private VBox entryCard(
-            RecoveryEntry entry) {
 
-        VBox box =
-                card();
+       content.setPadding(
+               new Insets(20)
+       );
 
 
-        Label title =
-                heading(
-                        entry.type
-                );
 
 
-        title.setStyle(
-                "-fx-font-size: 17px;" +
-                        "-fx-font-weight: bold;" +
-                        "-fx-text-fill: " +
-                        BLUE + ";"
-        );
+       if (loggedInName == null) {
+           showLogin();
+           return;
+       }
 
 
-        Label date =
-                new Label(
-                        entry.date.format(
-                                DATE_FORMAT
-                        )
-                );
+       VBox welcome = card();
+       Label welcomeTitle = heading("Welcome, " + loggedInName + "!");
+       Label currentDate = new Label("Today: " + LocalDate.now().format(
+               DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy")));
+       Button logoutButton = button("Log Out", PALE, BLUE);
+       logoutButton.setOnAction(e -> logout());
+       welcome.getChildren().addAll(welcomeTitle, currentDate, logoutButton);
+       content.getChildren().add(welcome);
 
 
-        date.setStyle(
-                "-fx-text-fill: #777777;"
-        );
+       if (providerMode) {
 
 
-        box.getChildren().addAll(
-                title,
-                date
-        );
+           buildProviderDashboard(content);
 
 
-        if (!entry.note.isBlank()) {
+       } else {
 
-            Label note =
-                    new Label(
-                            entry.note
-                    );
 
-            note.setWrapText(true);
+           buildPatientDashboard(content);
+       }
 
-            box.getChildren().add(
-                    note
-            );
-        }
 
 
-        if (entry.photoPath != null) {
 
-            Button view =
-                    button(
-                            "📷 View Photo",
-                            PALE,
-                            BLUE
-                    );
+       ScrollPane scroll =
+               new ScrollPane(content);
 
 
-            view.setOnAction(
-                    e ->
-                            viewPhoto(
-                                    entry.photoPath
-                            )
-            );
+       scroll.setFitToWidth(true);
 
 
-            box.getChildren().add(
-                    view
-            );
-        }
+       scroll.setStyle(
+               "-fx-background: white;" +
+                       "-fx-background-color: white;"
+       );
 
 
-        return box;
-    }
 
 
-    //Be able to view photo/select
-    //Check if the photo file exists
-    private void viewPhoto(
-            String photoPath) {
+       page.setCenter(scroll);
 
-        File file =
-                new File(photoPath);
 
+       display(page);
+   }
 
-        if (!file.isFile()) {
 
-            alert(
-                    "Photo Error",
-                    "The photo file was not found."
-            );
 
-            return;
-        }
 
+   //Homepage for PATIENT
+   private VBox createDailyCheckInCard() {
+       LocalDate checkInDate = LocalDate.now();
+       RecoveryEntry existingEntry = entries.stream()
+               .filter(entry -> "Daily Check-In".equals(entry.type)
+                       && checkInDate.equals(entry.date))
+               .findFirst()
+               .orElse(null);
 
-        Image image =
-                new Image(
-                        file.toURI()
-                                .toString(),
-                        false
-                );
 
+       VBox checkInCard = card();
+       checkInCard.getChildren().addAll(
+               heading("How are you feeling today?"),
+               new Label(checkInDate.format(DATE_FORMAT)));
 
-        if (image.isError()) {
 
-            alert(
-                    "Photo Error",
-                    "Unable to open this photo."
-            );
+       ComboBox<Integer> pain = new ComboBox<>();
+       ComboBox<Integer> stress = new ComboBox<>();
+       for (int score = 0; score <= 10; score++) {
+           pain.getItems().add(score);
+           stress.getItems().add(score);
+       }
+       pain.setPromptText("Select pain level");
+       stress.setPromptText("Select stress level");
+       pain.setMaxWidth(Double.MAX_VALUE);
+       stress.setMaxWidth(Double.MAX_VALUE);
 
-            return;
-        }
 
+       TextArea checkInNote = new TextArea();
+       checkInNote.setPromptText("Anything you would like to add?");
+       checkInNote.setWrapText(true);
+       checkInNote.setPrefRowCount(3);
 
-        ImageView imageView =
-                new ImageView(image);
 
-        imageView.setPreserveRatio(true);
-        imageView.setFitWidth(700);
-        imageView.setFitHeight(520);
+       Label error = new Label();
+       error.setStyle("-fx-text-fill: #B42318;");
+       error.setWrapText(true);
+       error.setVisible(false);
+       error.setManaged(false);
 
 
-        StackPane viewer =
-                new StackPane(
-                        imageView
-                );
+       Button saveCheckIn = button("Save Check-In", BLUE, "white");
+       VBox fields = new VBox(10,
+               new Label("Optional daily check-in"),
+               fieldLabel("Pain level (0 = no pain, 10 = highest pain)"),
+               pain,
+               fieldLabel("Stress level (0 = no stress, 10 = highest stress)"),
+               stress,
+               fieldLabel("Anything to add? (optional)"),
+               checkInNote, error, saveCheckIn);
 
-        viewer.setPadding(
-                new Insets(20)
-        );
 
-        viewer.setStyle(
-                "-fx-background-color: #202020;"
-        );
+       Label completed = new Label("✓ Today's check-in completed");
+       completed.setStyle("-fx-text-fill: #24864A; -fx-font-weight: bold;");
+       Label summary = new Label();
+       summary.setWrapText(true);
+       Button editCheckIn = button("Edit", PALE, BLUE);
+       VBox savedDetails = new VBox(10, completed, summary, editCheckIn);
 
 
-        Stage photoWindow =
-                new Stage();
+       if (existingEntry != null) {
+           pain.setValue(existingEntry.painLevel);
+           stress.setValue(existingEntry.stressLevel);
+           checkInNote.setText(existingEntry.note);
+           summary.setText("Pain: " + existingEntry.painLevel + "/10"
+                   + "   Stress: " + existingEntry.stressLevel + "/10");
+       }
+       fields.setVisible(existingEntry == null);
+       fields.setManaged(existingEntry == null);
+       savedDetails.setVisible(existingEntry != null);
+       savedDetails.setManaged(existingEntry != null);
 
-        photoWindow.initOwner(stage);
 
-        photoWindow.initModality(
-                Modality.NONE
-        );
+       editCheckIn.setOnAction(event -> {
+           savedDetails.setVisible(false);
+           savedDetails.setManaged(false);
+           fields.setVisible(true);
+           fields.setManaged(true);
+           pain.requestFocus();
+       });
 
-        photoWindow.setTitle(
-                "View Recovery Photo"
-        );
 
-        photoWindow.setScene(
-                new Scene(
-                        viewer,
-                        750,
-                        570
-                )
-        );
+       saveCheckIn.setOnAction(event -> {
+           if (!checkInDate.equals(LocalDate.now())) {
+               showHome();
+               return;
+           }
+           if (pain.getValue() == null || stress.getValue() == null) {
+               error.setText("Select both pain and stress levels to save.");
+               error.setVisible(true);
+               error.setManaged(true);
+               return;
+           }
+           RecoveryEntry entry = existingEntry;
+           if (entry == null) {
+               entry = new RecoveryEntry("Daily Check-In", "", null, checkInDate);
+               entries.add(entry);
+           }
+           entry.painLevel = pain.getValue();
+           entry.stressLevel = stress.getValue();
+           entry.note = checkInNote.getText().trim();
+           selectedDate = checkInDate;
+           listMode = false;
+           showHome();
+       });
+       checkInCard.getChildren().addAll(fields, savedDetails);
+       return checkInCard;
+   }
 
 
-        photoWindow.show();
-    }
+   private void buildPatientDashboard(VBox content) {
 
 
-    //Activity card
-    private VBox activityCard(
-            AdvisedActivity a,
-            boolean patientView) {
+       content.getChildren().add(
+               heading("My Recovery")
+       );
+       content.getChildren().add(createDailyCheckInCard());
 
-        VBox box =
-                card();
 
 
-        Label title =
-                heading(
-                        a.title
-                );
 
+       //Show positive feedback when the patient records progress on consecutive days.
+       Streak streak = new Streak(entries, activities);
+       VBox streakCard = card();
 
-        title.setStyle(
-                "-fx-font-size: 17px;" +
-                        "-fx-font-weight: bold;" +
-                        "-fx-text-fill: " +
-                        BLUE + ";"
-        );
 
+       streakCard.getChildren().add(heading("Your Recovery Progress"));
 
-        Label date =
-                new Label(
-                        "Advised for: " +
-                                a.date.format(
-                                        DATE_FORMAT
-                                )
-                );
 
+       Label streakMessage;
+       if (streak.hasStreak()) {
+           StringBuilder message = new StringBuilder("Great job, ")
+                   .append(loggedInName).append("! ");
+           if (streak.recoveryDays > 1) {
+               message.append("You updated your recovery log ")
+                       .append(streak.recoveryDays)
+                       .append(" days in a row. ");
+           }
+           if (streak.activityDays > 1) {
+               message.append("You recorded or completed activities ")
+                       .append(streak.activityDays)
+                       .append(" days in a row. ");
+           }
+           message.append("Keep up the great work!");
+           streakMessage = new Label(message.toString());
+           streakMessage.setStyle(
+                   "-fx-font-size: 15px; -fx-font-weight: bold; " +
+                           "-fx-text-fill: #24864A;"
+           );
+       } else {
+           streakMessage = new Label(
+                   "Every update counts! Keep recording your recovery progress. " +
+                           "Your streak will appear here as you build consistency."
+           );
+       }
 
-        Label instructions =
-                new Label(
-                        a.instructions
-                );
 
-        instructions.setWrapText(true);
+       streakMessage.setWrapText(true);
 
 
-        Label status =
-                new Label(
-                        a.completed
-                                ? "Status: Completed"
-                                : "Status: Pending"
-                );
+       Label recoveryStreak = new Label(
+               "Recovery Log Streak: " + streak.recoveryDays + " days");
 
 
-        status.setStyle(
-                "-fx-text-fill: " +
-                        (a.completed
-                                ? "#24864A"
-                                : "#B7791F") +
-                        ";"
-        );
+       Label activityStreak = new Label(
+               "Activity Streak: " + streak.activityDays + " days");
+       streakCard.getChildren().addAll(
+               streakMessage, recoveryStreak, activityStreak);
+       content.getChildren().add(streakCard);
 
 
-        box.getChildren().addAll(
-                title,
-                date,
-                instructions,
-                status
-        );
 
 
-        if (patientView) {
+       Button calendar = button(
+       "Calendar",
+       listMode ? "white" : PALE,
+       BLUE
+);
 
-            Button update =
-                    button(
-                            a.completed
-                                    ? "Mark Pending"
-                                    : "Mark Completed",
-                            BLUE,
-                            "white"
-                    );
 
+Button list = button(
+       "List",
+       listMode ? PALE : "white",
+       BLUE
+);
 
-            update.setOnAction(e -> {
 
-                a.completed =
-                        !a.completed;
+calendar.setOnAction(e -> {
+   listMode = false;
+   showHome();
+});
 
-                a.completedDate = a.completed ? LocalDate.now() : null;
 
-                showHome();
-            });
+list.setOnAction(e -> {
+   listMode = true;
+   showHome();
+});
 
 
-            box.getChildren().add(
-                    update
-            );
-        }
+HBox viewButtons = new HBox(10, calendar, list);
+viewButtons.setAlignment(Pos.CENTER_LEFT);
 
 
-        return box;
-    }
+Button addEntry = button(
+       "+ Add Recovery Entry",
+       BLUE,
+       "white"
+);
 
 
-    //Create entry for Patients
-    //Will allow to select either note or photo
-    //Will allow to add caption
-    //If selecting photo, will choose from local computer
-    //Missing information will prompt user an alert
-    private void showAddEntry() {
-        BorderPane page = new BorderPane();
-        page.setStyle("-fx-background-color: white;");
-        page.setTop(header("New Recovery Entry", false));
+addEntry.setOnAction(e -> showAddEntry());
 
-        VBox form = new VBox(17);
-        form.setPadding(new Insets(30));
 
-        DatePicker date = new DatePicker(selectedDate);
-        date.setMaxWidth(Double.MAX_VALUE);
+BorderPane recoveryControls = new BorderPane();
+recoveryControls.setLeft(viewButtons);
+recoveryControls.setRight(addEntry);
 
-        ComboBox<String> type = new ComboBox<>();
-        type.getItems().addAll("Recovery Note", "Recovery Photo", "Activity Update", "Meal Entry");
-        type.setPromptText("Select entry type");
-        type.setMaxWidth(Double.MAX_VALUE);
 
-        // Workout information
-        TextField workoutName = new TextField();
-        workoutName.setPromptText("Example: walking or prescribed exercises");
+BorderPane.setAlignment(viewButtons, Pos.CENTER_LEFT);
+BorderPane.setAlignment(addEntry, Pos.CENTER_RIGHT);
+BorderPane.setMargin(addEntry, new Insets(0, 0, 0, 20));
 
-        TextField workoutMinutes = new TextField();
-        workoutMinutes.setPromptText("Enter whole minutes, for example 15");
 
-        ComboBox<String> effort = new ComboBox<>();
-        effort.getItems().addAll("Light", "Moderate", "Hard");
-        effort.setPromptText("Select effort level");
-        effort.setMaxWidth(Double.MAX_VALUE);
+content.getChildren().add(recoveryControls);
 
-        // Recovery questions
-        ComboBox<Integer> discomfort = new ComboBox<>();
-        for (int score = 0; score <= 10; score++) {
-            discomfort.getItems().add(score);
-        }
-        discomfort.setPromptText("Select a score");
-        discomfort.setMaxWidth(Double.MAX_VALUE);
 
-        ComboBox<String> planFollowed = new ComboBox<>();
-        planFollowed.getItems().addAll("Yes", "Partly", "No", "No plan assigned");
-        planFollowed.setPromptText("Select an answer");
-        planFollowed.setMaxWidth(Double.MAX_VALUE);
 
-        TextArea feedback = new TextArea();
-        feedback.setPromptText("What felt difficult, or what would you like "
-                + "your provider to know?");
-        feedback.setWrapText(true);
-        feedback.setPrefRowCount(3);
 
-        VBox workoutFields = new VBox(
-                10,
-                fieldLabel("Workout / activity name"), workoutName,
-                fieldLabel("Duration (minutes)"), workoutMinutes,
-                fieldLabel("How demanding was the activity?"), effort,
-                fieldLabel("Discomfort during activity (0 = none, 10 = highest)"), discomfort,
-                fieldLabel("Did you follow your assigned activity plan?"), planFollowed,
-                fieldLabel("Feedback or questions (optional)"), feedback
-        );
-        workoutFields.setStyle("-fx-background-color: #F0F5FC;"
-                + "-fx-background-radius: 12;"
-                + "-fx-padding: 18;");
-        workoutFields.setVisible(false);
-        workoutFields.setManaged(false);
+       if (!listMode) {
 
-        // Pedro's meal tracking: meal type, name, macronutrients and optional photo.
-        ComboBox<String> mealType = new ComboBox<>();
-        mealType.getItems().addAll("Breakfast", "Lunch", "Dinner", "Snack");
-        mealType.setPromptText("Select meal type");
-        mealType.setMaxWidth(Double.MAX_VALUE);
 
-        TextField mealName = new TextField();
-        mealName.setPromptText("Example: Chicken and rice");
-        TextField protein = new TextField();
-        protein.setPromptText("Protein in grams (e.g. 25)");
-        TextField carbs = new TextField();
-        carbs.setPromptText("Carbs in grams (e.g. 40)");
-        TextField fat = new TextField();
-        fat.setPromptText("Fat in grams (e.g. 10)");
+           content.getChildren().add(
+                   createCalendar()
+           );
+       }
 
-        VBox mealFields = new VBox(10,
-                fieldLabel("Meal type"), mealType,
-                fieldLabel("Meal name"), mealName,
-                fieldLabel("Protein (g)"), protein,
-                fieldLabel("Carbohydrates (g)"), carbs,
-                fieldLabel("Fat (g)"), fat
-        );
-        mealFields.setStyle("-fx-background-color: #F0F5FC;"
-                + "-fx-background-radius: 12; -fx-padding: 18;");
-        mealFields.setVisible(false);
-        mealFields.setManaged(false);
 
-        Label noteLabel = fieldLabel("Recovery Note");
-        TextArea note = new TextArea();
-        note.setPromptText("Describe your recovery progress...");
-        note.setWrapText(true);
-        note.setPrefHeight(170);
 
-        // Show workout questions when Activity Update is selected.
-        type.valueProperty().addListener((observable, previous, selected) -> {
-            boolean activitySelected = "Activity Update".equals(selected);
-            workoutFields.setVisible(activitySelected);
-            workoutFields.setManaged(activitySelected);
-            boolean mealSelected = "Meal Entry".equals(selected);
-            mealFields.setVisible(mealSelected);
-            mealFields.setManaged(mealSelected);
-            noteLabel.setText(activitySelected
-                    ? "If any, what improvements can I make for next time?"
-                    : mealSelected ? "Meal notes (optional)" : "Recovery Note");
-            note.setPromptText(activitySelected
-                    ? "Anything else you would like to add?"
-                    : mealSelected ? "Add details about your meal (optional)..."
-                    : "Describe your recovery progress...");
-        });
 
-        Label photoName = new Label("No photo selected");
-        photoName.setStyle("-fx-text-fill: #777777;");
-        final String[] photoPath = {null};
+       content.getChildren().add(
+               section(
+                       "RECOVERY LOG"
+               )
+       );
 
-        Button addPhoto = button("📷 Add Photo", PALE, BLUE);
-        addPhoto.setMaxWidth(Double.MAX_VALUE);
-        addPhoto.setOnAction(event -> {
-            FileChooser chooser = new FileChooser();
-            chooser.setTitle("Select Recovery Photo");
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
-                    "Images", "*.png", "*.jpg", "*.jpeg", "*.gif"));
-            File file = chooser.showOpenDialog(stage);
-            if (file != null) {
-                Image image = new Image(file.toURI().toString(), false);
-                if (image.isError()) {
-                    alert("Photo Error", "This image could not be opened.");
-                    return;
-                }
-                photoPath[0] = file.getAbsolutePath();
-                photoName.setText(file.getName());
-            }
-        });
 
-        Button save = button("Save Recovery Entry", BLUE, "white");
-        save.setMaxWidth(Double.MAX_VALUE);
-        save.setPrefHeight(48);
-        save.setOnAction(event -> {
-            if (type.getValue() == null || date.getValue() == null) {
-                alert("Missing Information", "Select an entry type and date.");
-                return;
-            }
 
-            String text = note.getText().trim();
-            if ("Activity Update".equals(type.getValue())) {
-                if (workoutName.getText().trim().isEmpty()) {
-                    alert("Missing Workout", "Enter the workout or activity name.");
-                    workoutName.requestFocus();
-                    return;
-                }
 
-                int minutes;
-                try {
-                    minutes = Integer.parseInt(workoutMinutes.getText().trim());
-                    if (minutes <= 0) {
-                        throw new NumberFormatException();
-                    }
-                } catch (NumberFormatException exception) {
-                    alert("Invalid Duration", "Enter a positive whole number of minutes.");
-                    workoutMinutes.requestFocus();
-                    return;
-                }
+       List<RecoveryEntry> visible =
+               new ArrayList<>();
 
-                if (effort.getValue() == null
-                        || discomfort.getValue() == null
-                        || planFollowed.getValue() == null) {
-                    alert("Missing Answers", "Answer the effort, discomfort, "
-                            + "and activity plan questions.");
-                    return;
-                }
 
-                StringBuilder workoutSummary = new StringBuilder();
-                workoutSummary.append("Workout: ")
-                        .append(workoutName.getText().trim())
-                        .append("\nDuration: ").append(minutes).append(" minutes")
-                        .append("\nEffort: ").append(effort.getValue())
-                        .append("\nDiscomfort: ").append(discomfort.getValue())
-                        .append("/10")
-                        .append("\nFollowed assigned plan: ").append(planFollowed.getValue());
 
-                if (!feedback.getText().trim().isEmpty()) {
-                    workoutSummary.append("\nFeedback: ")
-                            .append(feedback.getText().trim());
-                }
-                if (!text.isEmpty()) {
-                    workoutSummary.append("\nAdditional note: ").append(text);
-                }
-                text = workoutSummary.toString();
-            }
 
-            if ("Meal Entry".equals(type.getValue())) {
-                if (mealType.getValue() == null || mealName.getText().trim().isEmpty()) {
-                    alert("Missing Meal Information", "Select a meal type and enter a meal name.");
-                    return;
-                }
-                String[] macroNames = {"Protein", "Carbohydrates", "Fat"};
-                TextField[] macroFields = {protein, carbs, fat};
-                double[] macros = new double[3];
-                for (int i = 0; i < macroFields.length; i++) {
-                    try {
-                        macros[i] = Double.parseDouble(macroFields[i].getText().trim());
-                        if (!Double.isFinite(macros[i]) || macros[i] < 0) {
-                            throw new NumberFormatException();
-                        }
-                    } catch (NumberFormatException exception) {
-                        alert("Invalid " + macroNames[i],
-                                "Enter a non-negative number of grams for " + macroNames[i] + ".");
-                        macroFields[i].requestFocus();
-                        return;
-                    }
-                }
-                StringBuilder mealSummary = new StringBuilder();
-                mealSummary.append("Meal type: ").append(mealType.getValue())
-                        .append("\nMeal: ").append(mealName.getText().trim())
-                        .append("\nProtein: ").append(macros[0]).append(" g")
-                        .append("\nCarbohydrates: ").append(macros[1]).append(" g")
-                        .append("\nFat: ").append(macros[2]).append(" g");
-                if (!text.isEmpty()) {
-                    mealSummary.append("\nAdditional note: ").append(text);
-                }
-                text = mealSummary.toString();
-            }
+       for (RecoveryEntry entry : entries) {
 
-            if (text.isEmpty() && photoPath[0] == null) {
-                alert("Missing Information", "Enter a note or add a photo.");
-                return;
-            }
 
-            entries.add(new RecoveryEntry(
-                    type.getValue(), text, photoPath[0], date.getValue()));
-            selectedDate = date.getValue();
-            listMode = false;
-            showHome();
-        });
+           if (listMode ||
+                   entry.date.equals(
+                           selectedDate
+                   )) {
 
-        form.getChildren().addAll(
-                fieldLabel("Entry Date"), date,
-                fieldLabel("Entry Type"), type,
-                workoutFields, mealFields, noteLabel, note,
-                addPhoto, photoName, save
-        );
 
-        ScrollPane scroll = new ScrollPane(form);
-        scroll.setFitToWidth(true);
-        page.setCenter(scroll);
-        display(page);
-    }
+               visible.add(entry);
+           }
+       }
 
 
-    //Create add acitivty
-    //Will allows providers to set an event to patients with the
-    //following: instructions, date, title
-    private void showAddActivity() {
 
-        BorderPane page =
-                new BorderPane();
 
+       visible.sort(
+               Comparator.comparing(
+                       (RecoveryEntry e) ->
+                               e.date
+               ).reversed()
+       );
 
-        page.setStyle(
-                "-fx-background-color: white;"
-        );
 
 
-        page.setTop(
-                header(
-                        "Create Advised Activity",
-                        false
-                )
-        );
 
+       if (visible.isEmpty()) {
 
-        VBox form =
-                new VBox(18);
 
-        form.setPadding(
-                new Insets(30)
-        );
+           Label empty =
+                   new Label(
+                           "No recovery entries yet.\n" +
+                                   "Click + to add a note or photo."
+                   );
 
 
-        TextField title =
-                new TextField();
 
 
-        title.setPromptText(
-                "Example: Daily Walking"
-        );
+           empty.setStyle(
+                   "-fx-text-fill: #777777;" +
+                           "-fx-font-size: 15px;"
+           );
 
 
-        TextArea instructions =
-                new TextArea();
 
 
-        instructions.setPromptText(
-                "Enter the provider's advised activity..."
-        );
+           content.getChildren().add(
+                   empty
+           );
 
 
-        instructions.setWrapText(true);
+       } else {
 
-        instructions.setPrefHeight(160);
 
+           for (RecoveryEntry entry :
+                   visible) {
 
-        DatePicker date =
-                new DatePicker(
-                        LocalDate.now()
-                );
 
+               content.getChildren().add(
+                       entryCard(entry)
+               );
+           }
+       }
 
-        date.setMaxWidth(
-                Double.MAX_VALUE
-        );
 
 
-        Button save =
-                button(
-                        "Save Advised Activity",
-                        BLUE,
-                        "white"
-                );
 
+       content.getChildren().add(
+               section(
+                       "ADVISED ACTIVITIES"
+               )
+       );
 
-        save.setMaxWidth(
-                Double.MAX_VALUE
-        );
 
 
-        save.setOnAction(e -> {
 
-            String name =
-                    title.getText()
-                            .trim();
+       if (activities.isEmpty()) {
 
 
-            String details =
-                    instructions.getText()
-                            .trim();
+           content.getChildren().add(
+                   new Label(
+                           "No activities assigned by the provider."
+                   )
+           );
 
 
-            if (name.isEmpty() ||
-                    details.isEmpty() ||
-                    date.getValue() == null) {
+       } else {
 
-                alert(
-                        "Missing Information",
-                        "Complete all activity fields."
-                );
 
-                return;
-            }
+           for (AdvisedActivity a :
+                   activities) {
 
 
-            activities.add(
-                    new AdvisedActivity(
-                            name,
-                            details,
-                            date.getValue()
-                    )
-            );
+               content.getChildren().add(
+                       activityCard(
+                               a,
+                               true
+                       )
+               );
+           }
+       }
+   }
 
 
-            unreadReminder = true;
 
-            showHome();
-        });
 
+   //Homepage for PROVIDER
+   //This screen will display options to view calendar, view options to upload photo
+   //or note, or view adv acitivty
+   private void buildProviderDashboard(VBox content) {
 
-        form.getChildren().addAll(
 
-                fieldLabel(
-                        "Activity Title"
-                ),
-                title,
+       content.getChildren().add(
+               heading(
+                       "Healthcare Provider Dashboard"
+               )
+       );
 
-                fieldLabel(
-                        "Provider Instructions"
-                ),
-                instructions,
 
-                fieldLabel(
-                        "Activity Date"
-                ),
-                date,
 
-                save
-        );
 
+       Label description =
+               new Label(
+                       "Review patient recovery notes, view photos, " +
+                               "and create advised activities."
+               );
 
-        ScrollPane scroll =
-                new ScrollPane(form);
 
-        scroll.setFitToWidth(true);
+       description.setWrapText(true);
 
-        page.setCenter(scroll);
 
-        display(page);
-    }
+       description.setStyle(
+               "-fx-text-fill: #777777;"
+       );
 
 
-    public static void main(String[] args) {
-        launch(args);
-    }
+
+
+       Button create =
+               button(
+                       "+ Create Advised Activity",
+                       BLUE,
+                       "white"
+               );
+
+
+
+
+       create.setOnAction(
+               e -> showAddActivity()
+       );
+
+
+
+
+       content.getChildren().addAll(
+               description,
+               create
+       );
+
+
+
+
+       content.getChildren().add(
+               section(
+                       "PATIENT RECOVERY ENTRIES"
+               )
+       );
+
+
+
+
+       if (entries.isEmpty()) {
+
+
+           content.getChildren().add(
+                   new Label(
+                           "No patient entries have been added."
+                   )
+           );
+
+
+       } else {
+
+
+           List<RecoveryEntry> sorted =
+                   new ArrayList<>(
+                           entries
+                   );
+
+
+
+
+           sorted.sort(
+                   Comparator.comparing(
+                           (RecoveryEntry e) ->
+                                   e.date
+                   ).reversed()
+           );
+
+
+
+
+           for (RecoveryEntry entry :
+                   sorted) {
+
+
+               content.getChildren().add(
+                       entryCard(entry)
+               );
+           }
+       }
+
+
+
+
+       content.getChildren().add(
+               section(
+                       "PROVIDER ADVISED ACTIVITIES"
+               )
+       );
+
+
+
+
+       if (activities.isEmpty()) {
+
+
+           content.getChildren().add(
+                   new Label(
+                           "No advised activities created yet."
+                   )
+           );
+
+
+       } else {
+
+
+           for (AdvisedActivity a :
+                   activities) {
+
+
+               content.getChildren().add(
+                       activityCard(
+                               a,
+                               false
+                       )
+               );
+           }
+       }
+   }
+
+
+
+
+   //Create calendar
+   //Will be able present weekly view -> List days of the week and dates
+   //Will be able to change the date
+   private VBox createCalendar() {
+
+
+       VBox box =
+               new VBox(15);
+
+
+       box.setAlignment(
+               Pos.CENTER
+       );
+
+
+       box.setPadding(
+               new Insets(15)
+       );
+
+
+       box.setStyle(
+               "-fx-background-color: " +
+                       BG + ";" +
+                       "-fx-background-radius: 12;"
+       );
+
+
+
+
+       HBox nav =
+               new HBox(22);
+
+
+       nav.setAlignment(
+               Pos.CENTER
+       );
+
+
+
+
+       Button previous =
+               button(
+                       "‹",
+                       "white",
+                       BLUE
+               );
+
+
+
+
+       Button next =
+               button(
+                       "›",
+                       "white",
+                       BLUE
+               );
+
+
+
+
+       Label month =
+               new Label(
+                       selectedDate.format(
+                               DateTimeFormatter.ofPattern(
+                                       "MMMM yyyy"
+                               )
+                       )
+               );
+
+
+
+
+       month.setStyle(
+               "-fx-font-size: 21px;" +
+                       "-fx-text-fill: " +
+                       BLUE + ";"
+       );
+
+
+
+
+       previous.setOnAction(e -> {
+
+
+           selectedDate =
+                   selectedDate.minusWeeks(1);
+
+
+           showHome();
+       });
+
+
+
+
+       next.setOnAction(e -> {
+
+
+           selectedDate =
+                   selectedDate.plusWeeks(1);
+
+
+           showHome();
+       });
+
+
+
+
+       nav.getChildren().addAll(
+               previous,
+               month,
+               next
+       );
+
+
+
+
+       GridPane grid =
+               new GridPane();
+
+
+       grid.setAlignment(
+               Pos.CENTER
+       );
+
+
+       grid.setHgap(8);
+       grid.setVgap(8);
+
+
+
+
+       String[] names = {
+               "Sun",
+               "Mon",
+               "Tue",
+               "Wed",
+               "Thu",
+               "Fri",
+               "Sat"
+       };
+
+
+
+
+       LocalDate sunday =
+               selectedDate.minusDays(
+                       selectedDate
+                               .getDayOfWeek()
+                               .getValue() % 7
+               );
+
+
+
+
+       for (int i = 0;
+            i < 7;
+            i++) {
+
+
+           LocalDate date =
+                   sunday.plusDays(i);
+
+
+
+
+           VBox day =
+                   new VBox(6);
+
+
+           day.setAlignment(
+                   Pos.CENTER
+           );
+
+
+           day.setPrefWidth(55);
+
+
+
+
+           Label name =
+                   new Label(
+                           names[i]
+                   );
+
+
+           name.setStyle(
+                   "-fx-text-fill: " +
+                           BLUE + ";"
+           );
+
+
+
+
+           Button dateButton =
+                   new Button(
+                           String.valueOf(
+                                   date.getDayOfMonth()
+                           )
+                   );
+
+
+
+
+           dateButton.setPrefSize(
+                   42,
+                   42
+           );
+
+
+
+
+           boolean selected =
+                   date.equals(
+                           selectedDate
+                   );
+
+
+
+
+           dateButton.setStyle(
+                   "-fx-background-color: " +
+                           (selected
+                                   ? SKY
+                                   : "white") + ";" +
+
+
+                           "-fx-text-fill: " +
+                           (selected
+                                   ? "white"
+                                   : "#333333") + ";" +
+
+
+                           "-fx-background-radius: 50;" +
+                           "-fx-cursor: hand;"
+           );
+
+
+
+
+           dateButton.setOnAction(e -> {
+
+
+               selectedDate = date;
+
+
+               showHome();
+           });
+
+
+
+
+           day.getChildren().addAll(
+                   name,
+                   dateButton
+           );
+
+
+
+
+           grid.add(
+                   day,
+                   i,
+                   0
+           );
+       }
+
+
+
+
+       box.getChildren().addAll(
+               nav,
+               grid
+       );
+
+
+
+
+       return box;
+   }
+
+
+
+
+   //Recovery card
+   private VBox entryCard(
+           RecoveryEntry entry) {
+       if ("Daily Check-In".equals(entry.type)) {
+           VBox checkInEntry = card();
+           Label scores = new Label(
+                   "Pain: " + entry.painLevel + "/10"
+                           + "\nStress: " + entry.stressLevel + "/10");
+           scores.setWrapText(true);
+           checkInEntry.getChildren().addAll(
+                   heading("Daily Check-In"),
+                   new Label(entry.date.format(DATE_FORMAT)),
+                   scores);
+           if (entry.note != null && !entry.note.isBlank()) {
+               Label savedNote = new Label(entry.note);
+               savedNote.setWrapText(true);
+               checkInEntry.getChildren().add(savedNote);
+           }
+           return checkInEntry;
+       }
+
+
+
+
+       VBox box =
+               card();
+
+
+
+
+       Label title =
+               heading(
+                       entry.type
+               );
+
+
+
+
+       title.setStyle(
+               "-fx-font-size: 17px;" +
+                       "-fx-font-weight: bold;" +
+                       "-fx-text-fill: " +
+                       BLUE + ";"
+       );
+
+
+
+
+       Label date =
+               new Label(
+                       entry.date.format(
+                               DATE_FORMAT
+                       )
+               );
+
+
+
+
+       date.setStyle(
+               "-fx-text-fill: #777777;"
+       );
+
+
+
+
+       box.getChildren().addAll(
+               title,
+               date
+       );
+
+
+
+
+       if (!entry.note.isBlank()) {
+
+
+           Label note =
+                   new Label(
+                           entry.note
+                   );
+
+
+           note.setWrapText(true);
+
+
+           box.getChildren().add(
+                   note
+           );
+       }
+
+
+
+
+       if (entry.photoPath != null) {
+
+
+           Button view =
+                   button(
+                           "📷 View Photo",
+                           PALE,
+                           BLUE
+                   );
+
+
+
+
+           view.setOnAction(
+                   e ->
+                           viewPhoto(
+                                   entry.photoPath
+                           )
+           );
+
+
+
+
+           box.getChildren().add(
+                   view
+           );
+       }
+
+
+
+
+       return box;
+   }
+
+
+
+
+   //Be able to view photo/select
+   //Check if the photo file exists
+   private void viewPhoto(
+           String photoPath) {
+
+
+       File file =
+               new File(photoPath);
+
+
+
+
+       if (!file.isFile()) {
+
+
+           alert(
+                   "Photo Error",
+                   "The photo file was not found."
+           );
+
+
+           return;
+       }
+
+
+
+
+       Image image =
+               new Image(
+                       file.toURI()
+                               .toString(),
+                       false
+               );
+
+
+
+
+       if (image.isError()) {
+
+
+           alert(
+                   "Photo Error",
+                   "Unable to open this photo."
+           );
+
+
+           return;
+       }
+
+
+
+
+       ImageView imageView =
+               new ImageView(image);
+
+
+       imageView.setPreserveRatio(true);
+       imageView.setFitWidth(700);
+       imageView.setFitHeight(520);
+
+
+
+
+       StackPane viewer =
+               new StackPane(
+                       imageView
+               );
+
+
+       viewer.setPadding(
+               new Insets(20)
+       );
+
+
+       viewer.setStyle(
+               "-fx-background-color: #202020;"
+       );
+
+
+
+
+       Stage photoWindow =
+               new Stage();
+
+
+       photoWindow.initOwner(stage);
+
+
+       photoWindow.initModality(
+               Modality.NONE
+       );
+
+
+       photoWindow.setTitle(
+               "View Recovery Photo"
+       );
+
+
+       photoWindow.setScene(
+               new Scene(
+                       viewer,
+                       750,
+                       570
+               )
+       );
+
+
+
+
+       photoWindow.show();
+   }
+
+
+
+
+   //Activity card
+   private VBox activityCard(
+           AdvisedActivity a,
+           boolean patientView) {
+
+
+       VBox box =
+               card();
+
+
+
+
+       Label title =
+               heading(
+                       a.title
+               );
+
+
+
+
+       title.setStyle(
+               "-fx-font-size: 17px;" +
+                       "-fx-font-weight: bold;" +
+                       "-fx-text-fill: " +
+                       BLUE + ";"
+       );
+
+
+
+
+       Label date =
+               new Label(
+                       "Advised for: " +
+                               a.date.format(
+                                       DATE_FORMAT
+                               )
+               );
+
+
+
+
+       Label instructions =
+               new Label(
+                       a.instructions
+               );
+
+
+       instructions.setWrapText(true);
+
+
+
+
+       Label status =
+               new Label(
+                       a.completed
+                               ? "Status: Completed"
+                               : "Status: Pending"
+               );
+
+
+
+
+       status.setStyle(
+               "-fx-text-fill: " +
+                       (a.completed
+                               ? "#24864A"
+                               : "#B7791F") +
+                       ";"
+       );
+
+
+
+
+       box.getChildren().addAll(
+               title,
+               date,
+               instructions,
+               status
+       );
+
+
+
+
+       if (patientView) {
+
+
+           Button update =
+                   button(
+                           a.completed
+                                   ? "Mark Pending"
+                                   : "Mark Completed",
+                           BLUE,
+                           "white"
+                   );
+
+
+
+
+           update.setOnAction(e -> {
+
+
+               a.completed =
+                       !a.completed;
+
+
+               a.completedDate = a.completed ? LocalDate.now() : null;
+
+
+               showHome();
+           });
+
+
+
+
+           box.getChildren().add(
+                   update
+           );
+       }
+
+
+
+
+       return box;
+   }
+
+
+
+
+   //Create entry for Patients
+   //Will allow to select either note or photo
+   //Will allow to add caption
+   //If selecting photo, will choose from local computer
+   //Missing information will prompt user an alert
+   private void showAddEntry() {
+       BorderPane page = new BorderPane();
+       page.setStyle("-fx-background-color: white;");
+       page.setTop(header("New Recovery Entry", false));
+
+
+       VBox form = new VBox(17);
+       form.setPadding(new Insets(30));
+
+
+       DatePicker date = new DatePicker(selectedDate);
+       date.setMaxWidth(Double.MAX_VALUE);
+
+
+       ComboBox<String> type = new ComboBox<>();
+       type.getItems().addAll("Recovery Note", "Recovery Photo", "Activity Update", "Meal Entry");
+       type.setPromptText("Select entry type");
+       type.setMaxWidth(Double.MAX_VALUE);
+
+
+       // Workout information
+       TextField workoutName = new TextField();
+       workoutName.setPromptText("Example: walking or prescribed exercises");
+
+
+       TextField workoutMinutes = new TextField();
+       workoutMinutes.setPromptText("Enter whole minutes, for example 15");
+
+
+       ComboBox<String> effort = new ComboBox<>();
+       effort.getItems().addAll("Light", "Moderate", "Hard");
+       effort.setPromptText("Select effort level");
+       effort.setMaxWidth(Double.MAX_VALUE);
+
+
+       // Recovery questions
+       ComboBox<Integer> discomfort = new ComboBox<>();
+       for (int score = 0; score <= 10; score++) {
+           discomfort.getItems().add(score);
+       }
+       discomfort.setPromptText("Select a score");
+       discomfort.setMaxWidth(Double.MAX_VALUE);
+
+
+       ComboBox<String> planFollowed = new ComboBox<>();
+       planFollowed.getItems().addAll("Yes", "Partly", "No", "No plan assigned");
+       planFollowed.setPromptText("Select an answer");
+       planFollowed.setMaxWidth(Double.MAX_VALUE);
+
+
+       TextArea feedback = new TextArea();
+       feedback.setPromptText("What felt difficult, or what would you like "
+               + "your provider to know?");
+       feedback.setWrapText(true);
+       feedback.setPrefRowCount(3);
+
+
+       VBox workoutFields = new VBox(
+               10,
+               fieldLabel("Workout / activity name"), workoutName,
+               fieldLabel("Duration (minutes)"), workoutMinutes,
+               fieldLabel("How demanding was the activity?"), effort,
+               fieldLabel("Discomfort during activity (0 = none, 10 = highest)"), discomfort,
+               fieldLabel("Did you follow your assigned activity plan?"), planFollowed,
+               fieldLabel("Feedback or questions (optional)"), feedback
+       );
+       workoutFields.setStyle("-fx-background-color: #F0F5FC;"
+               + "-fx-background-radius: 12;"
+               + "-fx-padding: 18;");
+       workoutFields.setVisible(false);
+       workoutFields.setManaged(false);
+
+
+       // Pedro's meal tracking: meal type, name, macronutrients and optional photo.
+       ComboBox<String> mealType = new ComboBox<>();
+       mealType.getItems().addAll("Breakfast", "Lunch", "Dinner", "Snack");
+       mealType.setPromptText("Select meal type");
+       mealType.setMaxWidth(Double.MAX_VALUE);
+
+
+       TextField mealName = new TextField();
+       mealName.setPromptText("Example: Chicken and rice");
+       TextField protein = new TextField();
+       protein.setPromptText("Protein in grams (e.g. 25)");
+       TextField carbs = new TextField();
+       carbs.setPromptText("Carbs in grams (e.g. 40)");
+       TextField fat = new TextField();
+       fat.setPromptText("Fat in grams (e.g. 10)");
+
+
+       VBox mealFields = new VBox(10,
+               fieldLabel("Meal type"), mealType,
+               fieldLabel("Meal name"), mealName,
+               fieldLabel("Protein (g)"), protein,
+               fieldLabel("Carbohydrates (g)"), carbs,
+               fieldLabel("Fat (g)"), fat
+       );
+       mealFields.setStyle("-fx-background-color: #F0F5FC;"
+               + "-fx-background-radius: 12; -fx-padding: 18;");
+       mealFields.setVisible(false);
+       mealFields.setManaged(false);
+
+
+       Label noteLabel = fieldLabel("Recovery Note");
+       TextArea note = new TextArea();
+       note.setPromptText("Describe your recovery progress...");
+       note.setWrapText(true);
+       note.setPrefHeight(170);
+
+
+       // Show workout questions when Activity Update is selected.
+       type.valueProperty().addListener((observable, previous, selected) -> {
+           boolean activitySelected = "Activity Update".equals(selected);
+           workoutFields.setVisible(activitySelected);
+           workoutFields.setManaged(activitySelected);
+           boolean mealSelected = "Meal Entry".equals(selected);
+           mealFields.setVisible(mealSelected);
+           mealFields.setManaged(mealSelected);
+           noteLabel.setText(activitySelected
+                   ? "If any, what improvements can I make for next time?"
+                   : mealSelected ? "Meal notes (optional)" : "Recovery Note");
+           note.setPromptText(activitySelected
+                   ? "Anything else you would like to add?"
+                   : mealSelected ? "Add details about your meal (optional)..."
+                   : "Describe your recovery progress...");
+       });
+
+
+       Label photoName = new Label("No photo selected");
+       photoName.setStyle("-fx-text-fill: #777777;");
+       final String[] photoPath = {null};
+
+
+       Button addPhoto = button("📷 Add Photo", PALE, BLUE);
+       addPhoto.setMaxWidth(Double.MAX_VALUE);
+       addPhoto.setOnAction(event -> {
+           FileChooser chooser = new FileChooser();
+           chooser.setTitle("Select Recovery Photo");
+           chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                   "Images", "*.png", "*.jpg", "*.jpeg", "*.gif"));
+           File file = chooser.showOpenDialog(stage);
+           if (file != null) {
+               Image image = new Image(file.toURI().toString(), false);
+               if (image.isError()) {
+                   alert("Photo Error", "This image could not be opened.");
+                   return;
+               }
+               photoPath[0] = file.getAbsolutePath();
+               photoName.setText(file.getName());
+           }
+       });
+
+
+       Button save = button("Save Recovery Entry", BLUE, "white");
+       save.setMaxWidth(Double.MAX_VALUE);
+       save.setPrefHeight(48);
+       save.setOnAction(event -> {
+           if (type.getValue() == null || date.getValue() == null) {
+               alert("Missing Information", "Select an entry type and date.");
+               return;
+           }
+
+
+           String text = note.getText().trim();
+           if ("Activity Update".equals(type.getValue())) {
+               if (workoutName.getText().trim().isEmpty()) {
+                   alert("Missing Workout", "Enter the workout or activity name.");
+                   workoutName.requestFocus();
+                   return;
+               }
+
+
+               int minutes;
+               try {
+                   minutes = Integer.parseInt(workoutMinutes.getText().trim());
+                   if (minutes <= 0) {
+                       throw new NumberFormatException();
+                   }
+               } catch (NumberFormatException exception) {
+                   alert("Invalid Duration", "Enter a positive whole number of minutes.");
+                   workoutMinutes.requestFocus();
+                   return;
+               }
+
+
+               if (effort.getValue() == null
+                       || discomfort.getValue() == null
+                       || planFollowed.getValue() == null) {
+                   alert("Missing Answers", "Answer the effort, discomfort, "
+                           + "and activity plan questions.");
+                   return;
+               }
+
+
+               StringBuilder workoutSummary = new StringBuilder();
+               workoutSummary.append("Workout: ")
+                       .append(workoutName.getText().trim())
+                       .append("\nDuration: ").append(minutes).append(" minutes")
+                       .append("\nEffort: ").append(effort.getValue())
+                       .append("\nDiscomfort: ").append(discomfort.getValue())
+                       .append("/10")
+                       .append("\nFollowed assigned plan: ").append(planFollowed.getValue());
+
+
+               if (!feedback.getText().trim().isEmpty()) {
+                   workoutSummary.append("\nFeedback: ")
+                           .append(feedback.getText().trim());
+               }
+               if (!text.isEmpty()) {
+                   workoutSummary.append("\nAdditional note: ").append(text);
+               }
+               text = workoutSummary.toString();
+           }
+
+
+           if ("Meal Entry".equals(type.getValue())) {
+               if (mealType.getValue() == null || mealName.getText().trim().isEmpty()) {
+                   alert("Missing Meal Information", "Select a meal type and enter a meal name.");
+                   return;
+               }
+               String[] macroNames = {"Protein", "Carbohydrates", "Fat"};
+               TextField[] macroFields = {protein, carbs, fat};
+               double[] macros = new double[3];
+               for (int i = 0; i < macroFields.length; i++) {
+                   try {
+                       macros[i] = Double.parseDouble(macroFields[i].getText().trim());
+                       if (!Double.isFinite(macros[i]) || macros[i] < 0) {
+                           throw new NumberFormatException();
+                       }
+                   } catch (NumberFormatException exception) {
+                       alert("Invalid " + macroNames[i],
+                               "Enter a non-negative number of grams for " + macroNames[i] + ".");
+                       macroFields[i].requestFocus();
+                       return;
+                   }
+               }
+               StringBuilder mealSummary = new StringBuilder();
+               mealSummary.append("Meal type: ").append(mealType.getValue())
+                       .append("\nMeal: ").append(mealName.getText().trim())
+                       .append("\nProtein: ").append(macros[0]).append(" g")
+                       .append("\nCarbohydrates: ").append(macros[1]).append(" g")
+                       .append("\nFat: ").append(macros[2]).append(" g");
+               if (!text.isEmpty()) {
+                   mealSummary.append("\nAdditional note: ").append(text);
+               }
+               text = mealSummary.toString();
+           }
+
+
+           if (text.isEmpty() && photoPath[0] == null) {
+               alert("Missing Information", "Enter a note or add a photo.");
+               return;
+           }
+
+
+           entries.add(new RecoveryEntry(
+                   type.getValue(), text, photoPath[0], date.getValue()));
+           selectedDate = date.getValue();
+           listMode = false;
+           showHome();
+       });
+
+
+       form.getChildren().addAll(
+               fieldLabel("Entry Date"), date,
+               fieldLabel("Entry Type"), type,
+               workoutFields, mealFields, noteLabel, note,
+               addPhoto, photoName, save
+       );
+
+
+       ScrollPane scroll = new ScrollPane(form);
+       scroll.setFitToWidth(true);
+       page.setCenter(scroll);
+       display(page);
+   }
+
+
+
+
+   //Create add acitivty
+   //Will allows providers to set an event to patients with the
+   //following: instructions, date, title
+   private void showAddActivity() {
+
+
+       BorderPane page =
+               new BorderPane();
+
+
+
+
+       page.setStyle(
+               "-fx-background-color: white;"
+       );
+
+
+
+
+       page.setTop(
+               header(
+                       "Create Advised Activity",
+                       false
+               )
+       );
+
+
+
+
+       VBox form =
+               new VBox(18);
+
+
+       form.setPadding(
+               new Insets(30)
+       );
+
+
+
+
+       TextField title =
+               new TextField();
+
+
+
+
+       title.setPromptText(
+               "Example: Daily Walking"
+       );
+
+
+
+
+       TextArea instructions =
+               new TextArea();
+
+
+
+
+       instructions.setPromptText(
+               "Enter the provider's advised activity..."
+       );
+
+
+
+
+       instructions.setWrapText(true);
+
+
+       instructions.setPrefHeight(160);
+
+
+
+
+       DatePicker date =
+               new DatePicker(
+                       LocalDate.now()
+               );
+
+
+
+
+       date.setMaxWidth(
+               Double.MAX_VALUE
+       );
+
+
+
+
+       Button save =
+               button(
+                       "Save Advised Activity",
+                       BLUE,
+                       "white"
+               );
+
+
+
+
+       save.setMaxWidth(
+               Double.MAX_VALUE
+       );
+
+
+
+
+       save.setOnAction(e -> {
+
+
+           String name =
+                   title.getText()
+                           .trim();
+
+
+
+
+           String details =
+                   instructions.getText()
+                           .trim();
+
+
+
+
+           if (name.isEmpty() ||
+                   details.isEmpty() ||
+                   date.getValue() == null) {
+
+
+               alert(
+                       "Missing Information",
+                       "Complete all activity fields."
+               );
+
+
+               return;
+           }
+
+
+
+
+           activities.add(
+                   new AdvisedActivity(
+                           name,
+                           details,
+                           date.getValue()
+                   )
+           );
+
+
+
+
+           unreadReminder = true;
+
+
+           showHome();
+       });
+
+
+
+
+       form.getChildren().addAll(
+
+
+               fieldLabel(
+                       "Activity Title"
+               ),
+               title,
+
+
+               fieldLabel(
+                       "Provider Instructions"
+               ),
+               instructions,
+
+
+               fieldLabel(
+                       "Activity Date"
+               ),
+               date,
+
+
+               save
+       );
+
+
+
+
+       ScrollPane scroll =
+               new ScrollPane(form);
+
+
+       scroll.setFitToWidth(true);
+
+
+       page.setCenter(scroll);
+
+
+       display(page);
+   }
+
+
+
+
+   public static void main(String[] args) {
+       launch(args);
+   }
 }
+
